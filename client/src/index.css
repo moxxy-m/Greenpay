@@ -5,19 +5,29 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Bottom navigation fix for external windows */
+/* Hide bottom navigation in external windows */
+@media (display-mode: browser) {
+  [data-testid="bottom-navigation"] {
+    display: none !important;
+  }
+}
+
+/* Only show bottom nav in embedded view */
 .safe-area-pb {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Ensure bottom navigation is always visible */
+/* Ensure proper spacing */
 #root {
   position: relative;
   min-height: 100vh;
-  padding-bottom: 80px; /* Space for bottom navigation */
 }
 
-/* Make sure bottom nav shows in external windows */
+/* Add bottom padding only when bottom nav is visible */
+.with-bottom-nav {
+  padding-bottom: 80px;
+}
+
 body, html {
   height: 100%;
   overflow-x: hidden;

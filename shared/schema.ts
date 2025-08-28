@@ -76,14 +76,32 @@ export const transactions = pgTable("transactions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const recipients = pgTable("recipients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  accountNumber: text("account_number"),
+  bankName: text("bank_name"),
+  bankCode: text("bank_code"),
+  country: text("country").notNull(),
+  currency: text("currency").notNull().default("KES"),
+  recipientType: text("recipient_type").default("mobile_wallet"), // bank, mobile_wallet, cash_pickup
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const paymentRequests = pgTable("payment_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   fromUserId: varchar("from_user_id").references(() => users.id).notNull(),
+  recipientId: varchar("recipient_id").references(() => recipients.id),
   toEmail: text("to_email"),
   toPhone: text("to_phone"),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  currency: text("currency").notNull(),
+  currency: text("currency").notNull().default("KES"),
   message: text("message"),
+  paymentLink: text("payment_link"),
   status: text("status").default("pending"), // pending, paid, expired
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -119,6 +137,12 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({
   createdAt: true,
 });
 
+export const insertRecipientSchema = createInsertSchema(recipients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).omit({
   id: true,
   status: true,
@@ -133,5 +157,7 @@ export type VirtualCard = typeof virtualCards.$inferSelect;
 export type InsertVirtualCard = z.infer<typeof insertVirtualCardSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type Recipient = typeof recipients.$inferSelect;
+export type InsertRecipient = z.infer<typeof insertRecipientSchema>;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
 export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;

@@ -1,77 +1,94 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth } from "@/hooks/use-auth";
-import { mockCurrencies, mockExchangeRates } from "@/lib/mock-data";
-
-const amountSchema = z.object({
-  amount: z.string().min(1, "Amount is required").refine((val) => parseFloat(val) > 0, "Amount must be greater than 0"),
-  currency: z.string().min(1, "Please select a currency"),
-});
-
-type AmountForm = z.infer<typeof amountSchema>;
+import { useExchangeRates } from "@/hooks/use-exchange-rates";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SendAmountPage() {
   const [, setLocation] = useLocation();
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [sourceCurrency, setSourceCurrency] = useState("USD");
+  const [targetCurrency, setTargetCurrency] = useState("KES");
   const [selectedRecipient, setSelectedRecipient] = useState<any>(null);
-  const [exchangeRate, setExchangeRate] = useState<number>(820);
-  const [recipientAmount, setRecipientAmount] = useState<string>("0");
   const { user } = useAuth();
-
-  const form = useForm<AmountForm>({
-    resolver: zodResolver(amountSchema),
-    defaultValues: {
-      amount: "",
-      currency: "USD",
-    },
-  });
-
-  const watchedAmount = form.watch("amount");
-  const watchedCurrency = form.watch("currency");
+  const { toast } = useToast();
+  const { data: exchangeRates } = useExchangeRates(sourceCurrency);
 
   useEffect(() => {
-    // Get selected recipient from previous step
-    const recipient = sessionStorage.getItem('selectedRecipient');
-    if (recipient) {
-      setSelectedRecipient(JSON.parse(recipient));
+    // Get selected recipient from sessionStorage
+    const recipientData = sessionStorage.getItem('selectedRecipient');
+    if (recipientData) {
+      const recipient = JSON.parse(recipientData);
+      setSelectedRecipient(recipient);
+      setTargetCurrency(recipient.currency || 'KES');
     } else {
-      setLocation("/send-money");
+      // Redirect back if no recipient selected
+      setLocation('/send-money');
     }
   }, [setLocation]);
 
-  useEffect(() => {
-    // Calculate recipient amount based on exchange rate
-    if (watchedAmount && parseFloat(watchedAmount) > 0) {
-      const amount = parseFloat(watchedAmount) * exchangeRate;
-      setRecipientAmount(amount.toLocaleString());
-    } else {
-      setRecipientAmount("0");
-    }
-  }, [watchedAmount, exchangeRate]);
+  const exchangeRate = exchangeRates?.rates?.[targetCurrency] || 1;
+  const convertedAmount = amount ? (parseFloat(amount) * exchangeRate).toFixed(2) : "0.00";
+  const fee = amount ? (parseFloat(amount) * 0.025).toFixed(2) : "0.00"; // 2.5% fee
+  const total = amount ? (parseFloat(amount) + parseFloat(fee)).toFixed(2) : "0.00";
 
-  const handleContinue = (data: AmountForm) => {
-    const transferData = {
+  const handleContinue = () => {
+    if (!amount || parseFloat(amount) <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (parseFloat(amount) > (parseFloat(user?.balance || "0"))) {
+      toast({
+        title: "Insufficient Balance",
+        description: "You don't have enough balance for this transfer",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Store transaction details for confirmation
+    sessionStorage.setItem('transferDetails', JSON.stringify({
       recipient: selectedRecipient,
-      amount: data.amount,
-      currency: data.currency,
-      recipientAmount,
-      exchangeRate,
-      fee: "2.99",
-      total: (parseFloat(data.amount) + 2.99).toFixed(2),
-    };
-    sessionStorage.setItem('transferData', JSON.stringify(transferData));
+      amount,
+      sourceCurrency,
+      targetCurrency,
+      convertedAmount,
+      fee,
+      total,
+      description,
+      exchangeRate
+    }));
+    
     setLocation("/send-confirm");
   };
 
+  const currencies = [
+    { code: "USD", name: "US Dollar", symbol: "$" },
+    { code: "KES", name: "Kenyan Shilling", symbol: "KSh" },
+    { code: "NGN", name: "Nigerian Naira", symbol: "₦" },
+    { code: "GHS", name: "Ghanaian Cedi", symbol: "₵" },
+    { code: "ZAR", name: "South African Rand", symbol: "R" },
+    { code: "UGX", name: "Ugandan Shilling", symbol: "USh" },
+    { code: "TZS", name: "Tanzanian Shilling", symbol: "TSh" },
+  ];
+
   if (!selectedRecipient) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
   }
 
   return (
@@ -90,7 +107,7 @@ export default function SendAmountPage() {
         >
           arrow_back
         </motion.button>
-        <h1 className="text-lg font-semibold">Send to {selectedRecipient.name}</h1>
+        <h1 className="text-lg font-semibold">Send Amount</h1>
       </motion.div>
 
       <div className="p-6 space-y-6">
@@ -102,7 +119,7 @@ export default function SendAmountPage() {
           className="flex items-center justify-center mb-6"
         >
           <div className="flex items-center">
-            <div className="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+            <div className="w-8 h-8 bg-muted text-muted-foreground rounded-full flex items-center justify-center text-sm font-bold">1</div>
             <div className="w-16 h-1 bg-primary mx-2"></div>
             <div className="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
             <div className="w-16 h-1 bg-muted mx-2"></div>
@@ -110,147 +127,157 @@ export default function SendAmountPage() {
           </div>
         </motion.div>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleContinue)} className="space-y-6">
-            {/* Amount Input */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-card p-6 rounded-xl border border-border text-center elevation-1"
-            >
-              <p className="text-muted-foreground mb-4">You send</p>
-              <div className="flex items-center justify-center mb-4">
-                <FormField
-                  control={form.control}
-                  name="currency"
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <SelectTrigger className="text-lg font-medium border-none bg-transparent focus:outline-none mr-2 w-auto">
+        {/* Recipient Info */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-card p-4 rounded-xl border border-border elevation-1"
+        >
+          <h3 className="font-semibold mb-3">Sending to</h3>
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center mr-3">
+              <span className="text-white font-semibold text-sm">
+                {selectedRecipient.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <p className="font-medium">{selectedRecipient.name}</p>
+              <p className="text-sm text-muted-foreground">
+                {selectedRecipient.country} • {selectedRecipient.currency}
+              </p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Amount Input */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-card p-6 rounded-xl border border-border elevation-1"
+        >
+          <h3 className="font-semibold mb-4">How much are you sending?</h3>
+          
+          <div className="space-y-4">
+            <div className="flex space-x-3">
+              <div className="flex-1">
+                <Label htmlFor="amount">You send</Label>
+                <div className="relative">
+                  <Input
+                    id="amount"
+                    type="number"
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="pr-16 text-2xl h-14"
+                    data-testid="input-amount"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Select value={sourceCurrency} onValueChange={setSourceCurrency}>
+                      <SelectTrigger className="w-20 h-8 text-sm border-0 bg-transparent">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockCurrencies.slice(0, 3).map((currency) => (
+                        {currencies.map((currency) => (
                           <SelectItem key={currency.code} value={currency.code}>
                             {currency.code}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="amount"
-                  render={({ field }) => (
-                    <Input
-                      {...field}
-                      type="number"
-                      step="0.01"
-                      className="text-4xl font-bold bg-transparent border-none focus:outline-none text-center p-0 h-auto"
-                      placeholder="0"
-                      data-testid="input-amount"
-                    />
-                  )}
-                />
-              </div>
-              <p className="text-sm text-muted-foreground">Available balance: $2,847.65</p>
-              <FormMessage />
-            </motion.div>
-
-            {/* Exchange Rate */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-card p-4 rounded-xl border border-border elevation-1"
-            >
-              <div className="flex items-center justify-center mb-4">
-                <span className="material-icons text-primary">swap_vert</span>
-              </div>
-              <div className="text-center">
-                <p className="text-muted-foreground mb-2">They receive</p>
-                <p className="text-2xl font-bold" data-testid="text-recipient-amount">₦{recipientAmount}</p>
-                <p className="text-sm text-muted-foreground">1 USD = {exchangeRate.toLocaleString()} NGN</p>
-              </div>
-            </motion.div>
-
-            {/* Fee Breakdown */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-card rounded-xl border border-border elevation-1"
-            >
-              <div className="p-4 border-b border-border">
-                <h3 className="font-semibold">Transaction Details</h3>
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount</span>
-                  <span className="font-medium" data-testid="text-amount">${watchedAmount || "0.00"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Transfer fee</span>
-                  <span className="font-medium">$2.99</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Exchange rate</span>
-                  <span className="font-medium">1 USD = {exchangeRate.toLocaleString()} NGN</span>
-                </div>
-                <hr className="border-border" />
-                <div className="flex justify-between font-bold">
-                  <span>Total to pay</span>
-                  <span data-testid="text-total">
-                    ${watchedAmount ? (parseFloat(watchedAmount) + 2.99).toFixed(2) : "2.99"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Arrival time</span>
-                  <span>Within 5 minutes</span>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Delivery Method */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="bg-card rounded-xl border border-border elevation-1"
-            >
-              <div className="p-4 border-b border-border">
-                <h3 className="font-semibold">Delivery Method</h3>
-              </div>
-              <div className="p-4">
-                <div className="flex items-center justify-between p-3 border border-primary rounded-xl bg-primary/5">
-                  <div className="flex items-center">
-                    <span className="material-icons text-primary mr-3">account_balance</span>
-                    <div>
-                      <p className="font-medium">Bank Transfer</p>
-                      <p className="text-sm text-muted-foreground">GTBank ****4567</p>
-                    </div>
                   </div>
-                  <span className="material-icons text-primary">check_circle</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-            >
-              <Button
-                type="submit"
-                className="w-full ripple"
-                data-testid="button-review-transfer"
-              >
-                Review Transfer
-              </Button>
-            </motion.div>
-          </form>
-        </Form>
+            <div className="text-center py-2">
+              <div className="flex items-center justify-center text-sm text-muted-foreground">
+                <span className="material-icons mr-1 text-sm">sync_alt</span>
+                1 {sourceCurrency} = {exchangeRate.toFixed(4)} {targetCurrency}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="converted">Recipient gets</Label>
+              <div className="relative">
+                <Input
+                  id="converted"
+                  value={convertedAmount}
+                  disabled
+                  className="pr-16 text-2xl h-14 bg-muted/50"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium">
+                  {targetCurrency}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description (Optional)</Label>
+              <Input
+                id="description"
+                placeholder="What's this for?"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                data-testid="input-description"
+              />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Fee Breakdown */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-card p-4 rounded-xl border border-border elevation-1"
+        >
+          <h3 className="font-semibold mb-3">Transaction breakdown</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Transfer amount</span>
+              <span>{amount || "0.00"} {sourceCurrency}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Transfer fee</span>
+              <span>{fee} {sourceCurrency}</span>
+            </div>
+            <div className="border-t border-border pt-2 mt-2">
+              <div className="flex justify-between font-semibold">
+                <span>Total to pay</span>
+                <span>{total} {sourceCurrency}</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Available Balance */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="text-center"
+        >
+          <p className="text-sm text-muted-foreground">
+            Available balance: <span className="font-semibold">{user?.balance || "0.00"} USD</span>
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
+          <Button
+            onClick={handleContinue}
+            className="w-full ripple"
+            disabled={!amount || parseFloat(amount) <= 0}
+            data-testid="button-continue"
+          >
+            Continue
+          </Button>
+        </motion.div>
       </div>
     </div>
   );

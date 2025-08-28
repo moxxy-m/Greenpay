@@ -32,3 +32,6 @@ export function useMultipleExchangeRates(base: string = 'USD') {
     staleTime: 30000,
   });
 }
+
+// Alias for compatibility
+export const useExchangeRates = useMultipleExchangeRates;

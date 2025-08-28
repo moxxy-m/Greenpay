@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertKycDocumentSchema, insertTransactionSchema, insertPaymentRequestSchema } from "@shared/schema";
+import { insertUserSchema, insertKycDocumentSchema, insertTransactionSchema, insertPaymentRequestSchema, insertRecipientSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import multer from "multer";
@@ -44,16 +44,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create user with hashed password (now handled in storage)
       const user = await storage.createUser(userData);
       
-      // Send OTP via WhatsApp
-      const otpCode = whatsappService.generateOTP();
-      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-      
-      await storage.updateUserOtp(user.id, otpCode, otpExpiry);
-      await whatsappService.sendOTP(userData.phone, otpCode);
+      // Auto-verify phone and email for smoother onboarding
+      await storage.updateUser(user.id, { 
+        isPhoneVerified: true, 
+        isEmailVerified: true 
+      });
       
       // Remove password from response
       const { password, ...userResponse } = user;
-      res.json({ user: userResponse, message: "OTP sent to your phone" });
+      res.json({ user: { ...userResponse, isPhoneVerified: true, isEmailVerified: true } });
     } catch (error) {
       console.error('Signup error:', error);
       res.status(400).json({ message: "Invalid user data" });
@@ -543,13 +542,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Recipient management routes
+  app.post("/api/recipients", async (req, res) => {
+    try {
+      const recipientData = insertRecipientSchema.parse(req.body);
+      const recipient = await storage.createRecipient(recipientData);
+      res.json({ recipient, message: "Recipient added successfully" });
+    } catch (error) {
+      console.error('Create recipient error:', error);
+      res.status(400).json({ message: "Invalid recipient data" });
+    }
+  });
+
+  app.get("/api/recipients/:userId", async (req, res) => {
+    try {
+      const recipients = await storage.getRecipientsByUserId(req.params.userId);
+      res.json({ recipients });
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching recipients" });
+    }
+  });
+
+  app.put("/api/recipients/:id", async (req, res) => {
+    try {
+      const recipient = await storage.updateRecipient(req.params.id, req.body);
+      if (recipient) {
+        res.json({ recipient, message: "Recipient updated successfully" });
+      } else {
+        res.status(404).json({ message: "Recipient not found" });
+      }
+    } catch (error) {
+      console.error('Update recipient error:', error);
+      res.status(500).json({ message: "Error updating recipient" });
+    }
+  });
+
+  app.delete("/api/recipients/:id", async (req, res) => {
+    try {
+      await storage.deleteRecipient(req.params.id);
+      res.json({ message: "Recipient deleted successfully" });
+    } catch (error) {
+      console.error('Delete recipient error:', error);
+      res.status(500).json({ message: "Error deleting recipient" });
+    }
+  });
+
   // User settings
   app.put("/api/users/:userId/settings", async (req, res) => {
     try {
       const { userId } = req.params;
-      const settings = req.body;
+      const { defaultCurrency, ...settings } = req.body;
       
-      const user = await storage.updateUser(userId, settings);
+      // Save default currency preference
+      const updateData = { ...settings };
+      if (defaultCurrency) {
+        updateData.defaultCurrency = defaultCurrency;
+      }
+      
+      const user = await storage.updateUser(userId, updateData);
       
       if (user) {
         const { password, ...userResponse } = user;
@@ -563,13 +613,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Payment Request routes
+  // Real-time exchange and currency conversion
+  app.post("/api/exchange/convert", async (req, res) => {
+    try {
+      const { amount, fromCurrency, toCurrency, userId } = req.body;
+      
+      // Verify user has virtual card for exchanges
+      const user = await storage.getUser(userId);
+      if (!user?.hasVirtualCard) {
+        return res.status(400).json({ message: "Virtual card required for currency exchanges" });
+      }
+
+      const exchangeRate = await exchangeRateService.getExchangeRate(fromCurrency, toCurrency);
+      const convertedAmount = (parseFloat(amount) * exchangeRate).toFixed(2);
+      const fee = (parseFloat(amount) * 0.015).toFixed(2); // 1.5% exchange fee
+      
+      // Create exchange transaction
+      const transaction = await storage.createTransaction({
+        userId,
+        type: "exchange",
+        amount,
+        currency: fromCurrency,
+        status: "completed",
+        fee,
+        exchangeRate: exchangeRate.toString(),
+        description: `Exchanged ${amount} ${fromCurrency} to ${convertedAmount} ${toCurrency}`,
+        metadata: {
+          targetCurrency: toCurrency,
+          convertedAmount,
+          exchangeType: "instant"
+        }
+      });
+      
+      res.json({ 
+        transaction,
+        convertedAmount,
+        exchangeRate,
+        fee,
+        message: "Currency exchanged successfully"
+      });
+    } catch (error) {
+      console.error('Exchange error:', error);
+      res.status(400).json({ message: "Exchange failed" });
+    }
+  });
+
+  // Payment Request routes with working payment links
   app.post("/api/payment-requests", async (req, res) => {
     try {
       const requestData = insertPaymentRequestSchema.parse(req.body);
       const request = await storage.createPaymentRequest(requestData);
-      res.json({ request });
+      
+      // Send notification if recipient has account
+      if (requestData.toEmail || requestData.toPhone) {
+        await notificationService.sendNotification({
+          title: "Payment Request",
+          body: `You have received a payment request for ${requestData.currency} ${requestData.amount}`,
+          userId: requestData.fromUserId,
+          type: "general",
+          metadata: { paymentRequestId: request.id }
+        });
+      }
+      
+      res.json({ request, message: "Payment request created successfully" });
     } catch (error) {
+      console.error('Payment request error:', error);
       res.status(400).json({ message: "Invalid payment request data" });
     }
   });
@@ -580,6 +688,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ requests });
     } catch (error) {
       res.status(500).json({ message: "Error fetching payment requests" });
+    }
+  });
+
+  app.post("/api/payment-requests/:id/pay", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { payerUserId } = req.body;
+      
+      const paymentRequest = await storage.getPaymentRequest(id);
+      if (!paymentRequest) {
+        return res.status(404).json({ message: "Payment request not found" });
+      }
+
+      if (paymentRequest.status !== 'pending') {
+        return res.status(400).json({ message: "Payment request already processed" });
+      }
+
+      // Process payment
+      const transaction = await storage.createTransaction({
+        userId: payerUserId,
+        type: "send",
+        amount: paymentRequest.amount.toString(),
+        currency: paymentRequest.currency,
+        recipientDetails: { paymentRequestId: id },
+        status: "completed",
+        fee: "0.00",
+        description: `Payment for request: ${paymentRequest.message || 'Payment request'}`
+      });
+
+      // Mark payment request as paid
+      await storage.updatePaymentRequest(id, { status: 'paid' });
+      
+      // Notify requester
+      await notificationService.sendNotification({
+        title: "Payment Received",
+        body: `Your payment request for ${paymentRequest.currency} ${paymentRequest.amount} has been paid`,
+        userId: paymentRequest.fromUserId,
+        type: "transaction"
+      });
+      
+      res.json({ transaction, message: "Payment completed successfully" });
+    } catch (error) {
+      console.error('Payment processing error:', error);
+      res.status(500).json({ message: "Error processing payment" });
     }
   });
 

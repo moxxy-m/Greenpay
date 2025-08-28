@@ -17,6 +17,7 @@ const signupSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
   phone: z.string().min(10, "Please enter a valid phone number"),
+  phoneCountryCode: z.string().min(1, "Please select country code"),
   country: z.string().min(1, "Please select your country"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
@@ -39,6 +40,7 @@ export default function SignupPage() {
       fullName: "",
       email: "",
       phone: "",
+      phoneCountryCode: "+254", // Default to Kenya
       country: "",
       password: "",
       confirmPassword: "",
@@ -55,9 +57,9 @@ export default function SignupPage() {
       login(data.user);
       toast({
         title: "Account created!",
-        description: "Please verify your phone number to continue.",
+        description: "Welcome to GreenPay! Complete your profile to get started.",
       });
-      setLocation("/otp-verification");
+      setLocation("/kyc-verification");
     },
     onError: () => {
       toast({
@@ -69,9 +71,23 @@ export default function SignupPage() {
   });
 
   const onSubmit = (data: SignupForm) => {
-    const { confirmPassword, agreeToTerms, ...signupData } = data;
-    signupMutation.mutate(signupData);
+    const { confirmPassword, agreeToTerms, phoneCountryCode, ...signupData } = data;
+    // Combine country code with phone number
+    const fullPhone = phoneCountryCode + signupData.phone;
+    signupMutation.mutate({ ...signupData, phone: fullPhone });
   };
+
+  const countryCodes = [
+    { code: "+254", country: "Kenya" },
+    { code: "+234", country: "Nigeria" },
+    { code: "+233", country: "Ghana" },
+    { code: "+27", country: "South Africa" },
+    { code: "+20", country: "Egypt" },
+    { code: "+256", country: "Uganda" },
+    { code: "+255", country: "Tanzania" },
+    { code: "+1", country: "USA" },
+    { code: "+44", country: "UK" },
+  ];
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -142,33 +158,50 @@ export default function SignupPage() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <div className="flex">
-                        <select className="px-3 py-3 border border-border rounded-l-xl bg-input focus:outline-none focus:ring-2 focus:ring-ring">
-                          <option>+1</option>
-                          <option>+44</option>
-                          <option>+234</option>
-                          <option>+254</option>
-                        </select>
+              <div className="flex space-x-2">
+                <FormField
+                  control={form.control}
+                  name="phoneCountryCode"
+                  render={({ field }) => (
+                    <FormItem className="w-28">
+                      <FormLabel>Code</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {countryCodes.map((item) => (
+                            <SelectItem key={item.code} value={item.code}>
+                              {item.code}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>Phone Number</FormLabel>
+                      <FormControl>
                         <Input
                           {...field}
                           type="tel"
-                          placeholder="Phone number"
-                          className="flex-1 rounded-l-none border-l-0"
+                          placeholder="712345678"
                           data-testid="input-phone"
                         />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}

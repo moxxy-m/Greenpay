@@ -9,11 +9,14 @@ import {
   type InsertTransaction,
   type PaymentRequest,
   type InsertPaymentRequest,
+  type Recipient,
+  type InsertRecipient,
   users,
   kycDocuments,
   virtualCards,
   transactions,
   paymentRequests,
+  recipients,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -46,9 +49,17 @@ export interface IStorage {
   getTransaction(id: string): Promise<Transaction | undefined>;
   updateTransaction(id: string, updates: Partial<Transaction>): Promise<Transaction | undefined>;
 
+  // Recipient operations
+  createRecipient(recipient: InsertRecipient): Promise<Recipient>;
+  getRecipientsByUserId(userId: string): Promise<Recipient[]>;
+  getRecipient(id: string): Promise<Recipient | undefined>;
+  updateRecipient(id: string, updates: Partial<Recipient>): Promise<Recipient | undefined>;
+  deleteRecipient(id: string): Promise<void>;
+
   // Payment Request operations
   createPaymentRequest(request: InsertPaymentRequest): Promise<PaymentRequest>;
   getPaymentRequestsByUserId(userId: string): Promise<PaymentRequest[]>;
+  getPaymentRequest(id: string): Promise<PaymentRequest | undefined>;
   updatePaymentRequest(id: string, updates: Partial<PaymentRequest>): Promise<PaymentRequest | undefined>;
 }
 
@@ -481,6 +492,52 @@ export class DatabaseStorage implements IStorage {
       .where(eq(paymentRequests.id, id))
       .returning();
     return request || undefined;
+  }
+
+  async getPaymentRequest(id: string): Promise<PaymentRequest | undefined> {
+    const [request] = await db
+      .select()
+      .from(paymentRequests)
+      .where(eq(paymentRequests.id, id));
+    return request || undefined;
+  }
+
+  // Recipient operations
+  async createRecipient(data: InsertRecipient): Promise<Recipient> {
+    const [recipient] = await db
+      .insert(recipients)
+      .values(data)
+      .returning();
+    return recipient;
+  }
+
+  async getRecipientsByUserId(userId: string): Promise<Recipient[]> {
+    return db
+      .select()
+      .from(recipients)
+      .where(eq(recipients.userId, userId))
+      .orderBy(desc(recipients.createdAt));
+  }
+
+  async getRecipient(id: string): Promise<Recipient | undefined> {
+    const [recipient] = await db
+      .select()
+      .from(recipients)
+      .where(eq(recipients.id, id));
+    return recipient;
+  }
+
+  async updateRecipient(id: string, data: Partial<Recipient>): Promise<Recipient | undefined> {
+    const [recipient] = await db
+      .update(recipients)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(recipients.id, id))
+      .returning();
+    return recipient;
+  }
+
+  async deleteRecipient(id: string): Promise<void> {
+    await db.delete(recipients).where(eq(recipients.id, id));
   }
 
   private generateCardNumber(): string {

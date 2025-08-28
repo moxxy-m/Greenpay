@@ -21,8 +21,11 @@ export default function BottomNavigation() {
   const [location, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
 
-  // Only show bottom navigation on authenticated pages
-  const showBottomNav = isAuthenticated && (
+  // Hide bottom navigation in external windows (browser)
+  const isExternal = window.matchMedia('(display-mode: browser)').matches;
+  
+  // Only show bottom navigation on authenticated pages and not in external view
+  const showBottomNav = !isExternal && isAuthenticated && (
     location.startsWith('/dashboard') ||
     location.startsWith('/transactions') ||
     location.startsWith('/virtual-card') ||
