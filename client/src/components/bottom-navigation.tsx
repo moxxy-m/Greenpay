@@ -34,7 +34,8 @@ export default function BottomNavigation() {
     location.startsWith('/send-money') ||
     location.startsWith('/receive-money') ||
     location.startsWith('/deposit') ||
-    location.startsWith('/withdraw')
+    location.startsWith('/withdraw') ||
+    location.startsWith('/exchange')
   );
 
   if (!showBottomNav) return null;

@@ -192,6 +192,7 @@ export default function DashboardPage() {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
+            onClick={() => setLocation("/exchange")}
             className="bg-card p-4 rounded-xl border border-border text-left hover:bg-muted transition-colors elevation-1"
             data-testid="button-exchange"
           >

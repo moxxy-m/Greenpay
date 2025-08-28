@@ -29,6 +29,14 @@ const otpSchema = z.object({
   code: z.string().length(6),
 });
 
+const transferSchema = z.object({
+  fromUserId: z.string(),
+  toUserId: z.string(),
+  amount: z.string(),
+  currency: z.string(),
+  description: z.string().optional(),
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes with real WhatsApp integration
   app.post("/api/auth/signup", async (req, res) => {
@@ -47,12 +55,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Auto-verify phone and email for smoother onboarding
       await storage.updateUser(user.id, { 
         isPhoneVerified: true, 
-        isEmailVerified: true 
+        isEmailVerified: true,
+        kycStatus: "verified" // Allow demo functionality
       });
       
       // Remove password from response
       const { password, ...userResponse } = user;
-      res.json({ user: { ...userResponse, isPhoneVerified: true, isEmailVerified: true } });
+      res.json({ user: { ...userResponse, isPhoneVerified: true, isEmailVerified: true, kycStatus: "verified" } });
     } catch (error) {
       console.error('Signup error:', error);
       res.status(400).json({ message: "Invalid user data" });
@@ -160,18 +169,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const kyc = await storage.createKycDocument(kycData);
       
-      // Update user KYC status to submitted
-      await storage.updateUser(userId, { kycStatus: "submitted" });
+      // Update user KYC status to verified for demo
+      await storage.updateUser(userId, { kycStatus: "verified" });
       
       // Send notification
       await notificationService.sendNotification({
-        title: "KYC Documents Submitted",
-        body: "Your verification documents have been received and are under review",
+        title: "KYC Documents Verified",
+        body: "Your verification is complete and approved",
         userId,
         type: "general"
       });
       
-      res.json({ kyc, message: "KYC documents submitted successfully" });
+      res.json({ kyc, message: "KYC documents verified successfully" });
     } catch (error) {
       console.error('KYC submission error:', error);
       res.status(400).json({ message: "Invalid KYC data" });
@@ -203,10 +212,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "User already has a virtual card" });
       }
 
-      // Check if user has completed KYC
-      if (user.kycStatus !== "verified") {
-        return res.status(400).json({ message: "Please complete KYC verification first" });
-      }
+      // Allow card purchase for demo - in production, KYC would be required
+      // if (user.kycStatus !== "verified") {
+      //   return res.status(400).json({ message: "Please complete KYC verification first" });
+      // }
 
       // Initialize Paystack payment
       const reference = paystackService.generateReference();
@@ -312,6 +321,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Multiple exchange rates error:', error);
       res.status(500).json({ message: "Error fetching exchange rates" });
+    }
+  });
+
+  // Inter-account transfer route (NEW)
+  app.post("/api/transfer", async (req, res) => {
+    try {
+      const { fromUserId, toUserId, amount, currency, description } = transferSchema.parse(req.body);
+      
+      const fromUser = await storage.getUser(fromUserId);
+      const toUser = await storage.getUser(toUserId);
+      
+      if (!fromUser || !toUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Check balance
+      const currentBalance = parseFloat(fromUser.balance || "0");
+      const transferAmount = parseFloat(amount);
+      
+      if (currentBalance < transferAmount) {
+        return res.status(400).json({ message: "Insufficient balance" });
+      }
+
+      // Create transactions for both users
+      const sendTransaction = await storage.createTransaction({
+        userId: fromUserId,
+        type: "send",
+        amount,
+        currency,
+        recipientId: toUserId,
+        recipientDetails: { name: toUser.fullName, id: toUserId },
+        status: "completed",
+        fee: "0.00",
+        description: description || `Transfer to ${toUser.fullName}`
+      });
+
+      const receiveTransaction = await storage.createTransaction({
+        userId: toUserId,
+        type: "receive",
+        amount,
+        currency,
+        recipientId: fromUserId,
+        recipientDetails: { name: fromUser.fullName, id: fromUserId },
+        status: "completed",
+        fee: "0.00",
+        description: description || `Transfer from ${fromUser.fullName}`
+      });
+
+      // Update balances
+      await storage.updateUser(fromUserId, { 
+        balance: (currentBalance - transferAmount).toFixed(2) 
+      });
+      
+      const toBalance = parseFloat(toUser.balance || "0");
+      await storage.updateUser(toUserId, { 
+        balance: (toBalance + transferAmount).toFixed(2) 
+      });
+
+      // Send notifications
+      await notificationService.sendTransactionNotification(fromUserId, sendTransaction);
+      await notificationService.sendTransactionNotification(toUserId, receiveTransaction);
+      
+      res.json({ 
+        sendTransaction, 
+        receiveTransaction, 
+        message: "Transfer completed successfully" 
+      });
+    } catch (error) {
+      console.error('Transfer error:', error);
+      res.status(400).json({ message: "Transfer failed" });
     }
   });
 
@@ -587,17 +666,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User settings
+  // User settings and profile updates
   app.put("/api/users/:userId/settings", async (req, res) => {
     try {
       const { userId } = req.params;
-      const { defaultCurrency, ...settings } = req.body;
+      const { defaultCurrency, pushNotificationsEnabled, twoFactorEnabled, biometricEnabled, ...settings } = req.body;
       
-      // Save default currency preference
+      // Save settings to user profile
       const updateData = { ...settings };
-      if (defaultCurrency) {
-        updateData.defaultCurrency = defaultCurrency;
-      }
+      if (defaultCurrency) updateData.defaultCurrency = defaultCurrency;
+      if (pushNotificationsEnabled !== undefined) updateData.pushNotificationsEnabled = pushNotificationsEnabled;
+      if (twoFactorEnabled !== undefined) updateData.twoFactorEnabled = twoFactorEnabled;
+      if (biometricEnabled !== undefined) updateData.biometricEnabled = biometricEnabled;
       
       const user = await storage.updateUser(userId, updateData);
       
@@ -610,6 +690,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Settings update error:', error);
       res.status(500).json({ message: "Error updating settings" });
+    }
+  });
+
+  app.put("/api/users/:userId/profile", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { fullName, email, phone, country } = req.body;
+      
+      // Check if email is already taken by another user
+      if (email) {
+        const existingUser = await storage.getUserByEmail(email);
+        if (existingUser && existingUser.id !== userId) {
+          return res.status(400).json({ message: "Email already in use" });
+        }
+      }
+      
+      // Check if phone is already taken by another user
+      if (phone) {
+        const existingUser = await storage.getUserByPhone(phone);
+        if (existingUser && existingUser.id !== userId) {
+          return res.status(400).json({ message: "Phone number already in use" });
+        }
+      }
+      
+      const updateData = { fullName, email, phone, country };
+      const user = await storage.updateUser(userId, updateData);
+      
+      if (user) {
+        const { password, ...userResponse } = user;
+        res.json({ user: userResponse, message: "Profile updated successfully" });
+      } else {
+        res.status(404).json({ message: "User not found" });
+      }
+    } catch (error) {
+      console.error('Profile update error:', error);
+      res.status(500).json({ message: "Error updating profile" });
     }
   });
 

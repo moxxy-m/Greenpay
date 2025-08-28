@@ -5,12 +5,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hide bottom navigation in external windows */
-@media (display-mode: browser) {
-  [data-testid="bottom-navigation"] {
-    display: none !important;
-  }
-}
+/* Keep bottom navigation visible in all contexts */
 
 /* Only show bottom nav in embedded view */
 .safe-area-pb {
