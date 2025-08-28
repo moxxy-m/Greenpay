@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { ObjectUploader } from "@/components/ObjectUploader";
 
 export default function SettingsPage() {
   const [, setLocation] = useLocation();
@@ -34,6 +35,11 @@ export default function SettingsPage() {
     twoFactorEnabled: user?.twoFactorEnabled || false,
     biometricEnabled: user?.biometricEnabled || false,
   });
+
+  // Profile editing states
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [is2FASetup, setIs2FASetup] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: typeof profileData) => {
@@ -95,6 +101,24 @@ export default function SettingsPage() {
     setSettings(newSettings);
     updateSettingsMutation.mutate(newSettings);
   };
+
+  const setup2FAMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/auth/setup-2fa`, { userId: user?.id });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setQrCodeUrl(data.qrCodeUrl);
+      setIs2FASetup(true);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Setup Failed",
+        description: error.message || "Unable to setup 2FA",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleLogout = () => {
     // Clear all local storage and session data
@@ -318,11 +342,20 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">Add extra security to your account</p>
               </div>
             </div>
-            <Switch
-              checked={settings.twoFactorEnabled}
-              onCheckedChange={(checked) => handleSettingUpdate('twoFactorEnabled', checked)}
-              data-testid="switch-2fa"
-            />
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={settings.twoFactorEnabled}
+                onCheckedChange={(checked) => {
+                  if (checked && !settings.twoFactorEnabled) {
+                    setup2FAMutation.mutate();
+                  } else {
+                    handleSettingUpdate('twoFactorEnabled', checked);
+                  }
+                }}
+                data-testid="switch-2fa"
+              />
+              {setup2FAMutation.isPending && <span className="text-xs">Setting up...</span>}
+            </div>
           </motion.div>
 
           {/* Biometric */}
@@ -344,6 +377,37 @@ export default function SettingsPage() {
             />
           </motion.div>
         </motion.div>
+
+        {/* 2FA QR Code Dialog */}
+        {qrCodeUrl && (
+          <Dialog open={is2FASetup} onOpenChange={setIs2FASetup}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Setup Authenticator</DialogTitle>
+              </DialogHeader>
+              <div className="text-center space-y-4">
+                <div className="w-48 h-48 bg-muted rounded-lg flex items-center justify-center mx-auto">
+                  <img src={qrCodeUrl} alt="2FA QR Code" className="w-full h-full" />
+                </div>
+                <div>
+                  <h3 className="font-medium mb-2">Scan with your authenticator app</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Use Google Authenticator, Authy, or any TOTP app to scan this QR code.
+                  </p>
+                  <Button 
+                    onClick={() => {
+                      setIs2FASetup(false);
+                      handleSettingUpdate('twoFactorEnabled', true);
+                    }}
+                    className="w-full"
+                  >
+                    Complete Setup
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Notifications */}
         <motion.div

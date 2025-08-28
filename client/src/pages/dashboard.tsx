@@ -3,20 +3,33 @@ import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { useTransactions } from "@/hooks/use-real-time-transactions";
-import { useMultipleExchangeRates } from "@/hooks/use-exchange-rates";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const [showBalance, setShowBalance] = useState(true);
   const { user, logout } = useAuth();
 
-  const { data: transactionData } = useTransactions();
-  const { data: exchangeRates } = useMultipleExchangeRates('USD');
-  const transactions = transactionData?.transactions || [];
+  // Get real user data
+  const { data: transactionData } = useQuery({
+    queryKey: ["/api/transactions", user?.id],
+    enabled: !!user?.id,
+  });
+
+  const { data: exchangeRates } = useQuery({
+    queryKey: ["/api/exchange-rates", "USD"],
+  });
+
+  const { data: cardData } = useQuery({
+    queryKey: ["/api/virtual-card", user?.id],
+    enabled: !!user?.id,
+  });
+
+  const transactions = (transactionData as any)?.transactions || [];
   
   // Real-time balance calculation from transactions
-  const realTimeBalance = transactions.reduce((balance, txn) => {
+  const realTimeBalance = transactions.reduce((balance: number, txn: any) => {
     if (txn.status === 'completed') {
       if (txn.type === 'receive' || txn.type === 'deposit') {
         return balance + parseFloat(txn.amount);
@@ -27,21 +40,15 @@ export default function DashboardPage() {
     return balance;
   }, parseFloat(user?.balance || '0'));
   
-  // Convert balance to other currencies
-  const balanceInGBP = exchangeRates ? (realTimeBalance * 0.81).toFixed(2) : '0.00';
-  const balanceInEUR = exchangeRates ? (realTimeBalance * 0.92).toFixed(2) : '0.00';
+  // Convert balance to other currencies using real rates
+  const rates = (exchangeRates as any)?.rates || {};
+  const balanceInNGN = rates.NGN ? (realTimeBalance * rates.NGN).toFixed(2) : '0.00';
+  const balanceInKES = rates.KES ? (realTimeBalance * rates.KES).toFixed(2) : '0.00';
   
-  // Check if user needs to complete setup
-  const needsKYC = user?.kycStatus !== 'verified';
-  const needsCard = !user?.hasVirtualCard;
-  
-  // Auto-refresh for real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // This will automatically refresh due to the query configuration
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  // Check user status
+  const isKYCVerified = user?.kycStatus === 'verified';
+  const hasVirtualCard = user?.hasVirtualCard || !!(cardData as any)?.card;
+  const cardStatus = (cardData as any)?.card ? 'active' : 'inactive';
 
   const toggleDarkMode = () => {
     document.documentElement.classList.toggle('dark');
@@ -91,6 +98,60 @@ export default function DashboardPage() {
       </motion.div>
 
       <div className="p-6 space-y-6">
+        {/* KYC Status Alert */}
+        {!isKYCVerified && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-amber-50 border border-amber-200 p-4 rounded-xl"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="material-icons text-amber-600 mr-2">warning</span>
+                <div>
+                  <h3 className="font-medium text-amber-800">Verify Your Identity</h3>
+                  <p className="text-sm text-amber-700">Complete KYC to unlock all features</p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setLocation("/kyc")}
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700"
+                data-testid="button-verify-kyc"
+              >
+                Verify Now
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Card Status Alert */}
+        {!hasVirtualCard && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-blue-50 border border-blue-200 p-4 rounded-xl"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="material-icons text-blue-600 mr-2">credit_card</span>
+                <div>
+                  <h3 className="font-medium text-blue-800">Activate Virtual Card</h3>
+                  <p className="text-sm text-blue-700">Purchase your virtual card to start transacting</p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setLocation("/virtual-card")}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
+                data-testid="button-activate-card"
+              >
+                Activate
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Wallet Balance Card */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -100,12 +161,17 @@ export default function DashboardPage() {
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-green-200 text-sm">Total Balance</p>
+              <p className="text-green-200 text-sm flex items-center">
+                Total Balance
+                {isKYCVerified && (
+                  <span className="material-icons text-green-100 ml-1 text-sm">verified</span>
+                )}
+              </p>
               <p className="text-3xl font-bold" data-testid="text-balance">
                 {showBalance ? `$${realTimeBalance.toFixed(2)}` : "••••••"}
               </p>
               <p className="text-green-200 text-sm">
-                ≈ £{showBalance ? balanceInGBP : '••••'} • €{showBalance ? balanceInEUR : '••••'}
+                ≈ ₦{showBalance ? balanceInNGN : '••••'} • KSh{showBalance ? balanceInKES : '••••'}
               </p>
               <p className="text-green-100 text-xs opacity-75">Live rates • Updates every 30s</p>
             </div>
@@ -123,34 +189,50 @@ export default function DashboardPage() {
           
           <div className="flex space-x-3">
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setLocation("/send-money")}
-              className="flex-1 bg-white/20 backdrop-blur-sm py-3 px-4 rounded-xl font-medium transition-all hover:bg-white/30 ripple"
+              disabled={!hasVirtualCard}
+              className={`flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center ${
+                !hasVirtualCard ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
               data-testid="button-send"
             >
-              <span className="material-icons text-sm mr-1">send</span>
-              Send
+              <span className="material-icons block mb-1">send</span>
+              <span className="text-xs">Send</span>
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setLocation("/receive-money")}
-              className="flex-1 bg-white/20 backdrop-blur-sm py-3 px-4 rounded-xl font-medium transition-all hover:bg-white/30 ripple"
+              disabled={!hasVirtualCard}
+              className={`flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center ${
+                !hasVirtualCard ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
               data-testid="button-receive"
             >
-              <span className="material-icons text-sm mr-1">call_received</span>
-              Receive
+              <span className="material-icons block mb-1">call_received</span>
+              <span className="text-xs">Receive</span>
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setLocation("/deposit")}
-              className="flex-1 bg-white/20 backdrop-blur-sm py-3 px-4 rounded-xl font-medium transition-all hover:bg-white/30 ripple"
-              data-testid="button-add"
+              className="flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center"
+              data-testid="button-deposit"
             >
-              <span className="material-icons text-sm mr-1">add</span>
-              Add
+              <span className="material-icons block mb-1">add</span>
+              <span className="text-xs">Deposit</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setLocation("/exchange")}
+              className="flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center"
+              data-testid="button-exchange"
+            >
+              <span className="material-icons block mb-1">currency_exchange</span>
+              <span className="text-xs">Exchange</span>
             </motion.button>
           </div>
         </motion.div>
@@ -166,156 +248,120 @@ export default function DashboardPage() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setLocation("/virtual-card")}
-            className="bg-card p-4 rounded-xl border border-border text-left hover:bg-muted transition-colors elevation-1"
+            className="bg-card p-4 rounded-xl border border-border text-center hover:bg-muted transition-colors elevation-1"
             data-testid="button-virtual-card"
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="material-icons text-primary">credit_card</span>
-              <span className="text-xs text-green-500 bg-green-100 px-2 py-1 rounded-full">Active</span>
-            </div>
-            <h3 className="font-semibold mb-1">Virtual Card</h3>
-            <p className="text-sm text-muted-foreground">Manage your card</p>
+            <span className="material-icons text-primary text-2xl mb-2">credit_card</span>
+            <p className="font-semibold">Virtual Card</p>
+            <p className={`text-xs ${cardStatus === 'active' ? 'text-green-600' : 'text-amber-600'}`}>
+              {cardStatus === 'active' ? 'Active' : 'Inactive'}
+            </p>
           </motion.button>
 
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => setLocation("/withdraw")}
-            className="bg-card p-4 rounded-xl border border-border text-left hover:bg-muted transition-colors elevation-1"
-            data-testid="button-withdraw"
+            onClick={() => setLocation("/transactions")}
+            className="bg-card p-4 rounded-xl border border-border text-center hover:bg-muted transition-colors elevation-1"
+            data-testid="button-transactions"
           >
-            <span className="material-icons text-secondary mb-2">account_balance</span>
-            <h3 className="font-semibold mb-1">Withdraw</h3>
-            <p className="text-sm text-muted-foreground">To bank account</p>
+            <span className="material-icons text-secondary text-2xl mb-2">receipt_long</span>
+            <p className="font-semibold">Transactions</p>
+            <p className="text-xs text-muted-foreground">{transactions.length} records</p>
           </motion.button>
 
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => setLocation("/exchange")}
-            className="bg-card p-4 rounded-xl border border-border text-left hover:bg-muted transition-colors elevation-1"
-            data-testid="button-exchange"
+            onClick={() => setLocation("/settings")}
+            className="bg-card p-4 rounded-xl border border-border text-center hover:bg-muted transition-colors elevation-1"
+            data-testid="button-settings"
           >
-            <span className="material-icons text-accent mb-2">swap_horiz</span>
-            <h3 className="font-semibold mb-1">Exchange</h3>
-            <p className="text-sm text-muted-foreground">Convert currency</p>
+            <span className="material-icons text-accent text-2xl mb-2">settings</span>
+            <p className="font-semibold">Settings</p>
+            <p className="text-xs text-muted-foreground">
+              {isKYCVerified ? 'Verified' : 'Setup required'}
+            </p>
           </motion.button>
 
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setLocation("/support")}
-            className="bg-card p-4 rounded-xl border border-border text-left hover:bg-muted transition-colors elevation-1"
+            className="bg-card p-4 rounded-xl border border-border text-center hover:bg-muted transition-colors elevation-1"
             data-testid="button-support"
           >
-            <span className="material-icons text-muted-foreground mb-2">support_agent</span>
-            <h3 className="font-semibold mb-1">Support</h3>
-            <p className="text-sm text-muted-foreground">Get help</p>
+            <span className="material-icons text-primary text-2xl mb-2">support_agent</span>
+            <p className="font-semibold">Support</p>
+            <p className="text-xs text-muted-foreground">24/7 help</p>
           </motion.button>
         </motion.div>
 
         {/* Recent Transactions */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-card rounded-xl border border-border elevation-1"
-        >
-          <div className="p-4 border-b border-border flex items-center justify-between">
-            <h3 className="font-semibold">Recent Transactions</h3>
-            <button
-              onClick={() => setLocation("/transactions")}
-              className="text-primary text-sm hover:underline"
-              data-testid="link-view-all-transactions"
-            >
-              View all
-            </button>
-          </div>
-          <div className="divide-y divide-border">
-            <motion.div
-              whileHover={{ backgroundColor: "var(--muted)" }}
-              className="p-4 flex items-center justify-between transaction-item cursor-pointer"
-              data-testid="transaction-item-1"
-            >
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                  <span className="material-icons text-green-600 text-sm">arrow_upward</span>
-                </div>
-                <div>
-                  <p className="font-medium">Sent to Mary Okafor</p>
-                  <p className="text-sm text-muted-foreground">Today, 2:30 PM</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-destructive">-$150.00</p>
-                <p className="text-xs text-muted-foreground">≈ ₦123,000</p>
-              </div>
-            </motion.div>
-
-            <motion.div
-              whileHover={{ backgroundColor: "var(--muted)" }}
-              className="p-4 flex items-center justify-between transaction-item cursor-pointer"
-              data-testid="transaction-item-2"
-            >
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                  <span className="material-icons text-blue-600 text-sm">arrow_downward</span>
-                </div>
-                <div>
-                  <p className="font-medium">Received from James Kone</p>
-                  <p className="text-sm text-muted-foreground">Yesterday, 4:15 PM</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-primary">+$85.50</p>
-                <p className="text-xs text-muted-foreground">≈ €79.20</p>
-              </div>
-            </motion.div>
-
-            <motion.div
-              whileHover={{ backgroundColor: "var(--muted)" }}
-              className="p-4 flex items-center justify-between transaction-item cursor-pointer"
-              data-testid="transaction-item-3"
-            >
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-3">
-                  <span className="material-icons text-purple-600 text-sm">add</span>
-                </div>
-                <div>
-                  <p className="font-medium">Card Top-up</p>
-                  <p className="text-sm text-muted-foreground">Mar 15, 10:22 AM</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-primary">+$500.00</p>
-                <p className="text-xs text-muted-foreground">Completed</p>
-              </div>
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Promotions */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-gradient-to-r from-accent to-primary p-4 rounded-xl text-white elevation-2"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold mb-1">Refer Friends & Earn</h3>
-              <p className="text-sm text-green-100">Get $10 for each successful referral</p>
+        {transactions.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-card rounded-xl border border-border elevation-1"
+          >
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h3 className="font-semibold">Recent Activity</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLocation("/transactions")}
+                data-testid="button-view-all-transactions"
+              >
+                View All
+              </Button>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-white/20 px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/30 transition-colors"
-              data-testid="button-share-referral"
-            >
-              Share
-            </motion.button>
-          </div>
-        </motion.div>
+            <div className="divide-y divide-border">
+              {transactions.slice(0, 3).map((transaction: any, index: number) => (
+                <div key={transaction.id || index} className="p-4 flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${
+                      transaction.type === 'receive' || transaction.type === 'deposit'
+                        ? 'bg-green-100 text-green-600'
+                        : 'bg-red-100 text-red-600'
+                    }`}>
+                      <span className="material-icons text-sm">
+                        {transaction.type === 'receive' || transaction.type === 'deposit'
+                          ? 'arrow_downward'
+                          : 'arrow_upward'}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-medium capitalize">{transaction.type.replace('_', ' ')}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(transaction.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-semibold ${
+                      transaction.type === 'receive' || transaction.type === 'deposit'
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                    }`}>
+                      {transaction.type === 'receive' || transaction.type === 'deposit' ? '+' : '-'}
+                      {transaction.currency} {transaction.amount}
+                    </p>
+                    <p className={`text-xs ${
+                      transaction.status === 'completed'
+                        ? 'text-green-600'
+                        : transaction.status === 'pending'
+                        ? 'text-amber-600'
+                        : 'text-red-600'
+                    }`}>
+                      {transaction.status}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );

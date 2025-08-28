@@ -19,7 +19,7 @@ export default function VirtualCardPage() {
     enabled: !!user?.id,
   });
 
-  const card = cardData?.card;
+  const card = (cardData as any)?.card;
   const hasCard = !!card;
 
   const purchaseCardMutation = useMutation({

@@ -33,9 +33,6 @@ function Router() {
       <Route path="/" component={SplashPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
-      <Route path="/otp-verification" component={OtpVerificationPage} />
-      <Route path="/kyc-verification" component={KycVerificationPage} />
-      <Route path="/virtual-card-purchase" component={VirtualCardPurchasePage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/send-money" component={SendMoneyPage} />
       <Route path="/send-amount" component={SendAmountPage} />
