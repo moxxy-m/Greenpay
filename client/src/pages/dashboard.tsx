@@ -28,22 +28,20 @@ export default function DashboardPage() {
 
   const transactions = (transactionData as any)?.transactions || [];
   
-  // Real-time balance calculation from transactions
-  const realTimeBalance = transactions.reduce((balance: number, txn: any) => {
-    if (txn.status === 'completed') {
-      if (txn.type === 'receive' || txn.type === 'deposit') {
-        return balance + parseFloat(txn.amount);
-      } else if (txn.type === 'send' || txn.type === 'card_purchase') {
-        return balance - parseFloat(txn.amount) - parseFloat(txn.fee || '0');
-      }
-    }
-    return balance;
-  }, parseFloat(user?.balance || '0'));
+  // Mock current balance as requested
+  const mockBalance = {
+    KES: 25000,
+    USD: 180,
+    NGN: 150000,
+    GHS: 1200
+  };
   
-  // Convert balance to other currencies using real rates
-  const rates = (exchangeRates as any)?.rates || {};
-  const balanceInNGN = rates.NGN ? (realTimeBalance * rates.NGN).toFixed(2) : '0.00';
-  const balanceInKES = rates.KES ? (realTimeBalance * rates.KES).toFixed(2) : '0.00';
+  // Use mock balance instead of calculated balance
+  const realTimeBalance = mockBalance.USD;
+  
+  // Use mocked balances in different currencies
+  const balanceInNGN = mockBalance.NGN.toLocaleString();
+  const balanceInKES = mockBalance.KES.toLocaleString();
   
   // Check user status
   const isKYCVerified = user?.kycStatus === 'verified';
