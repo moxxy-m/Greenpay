@@ -26,6 +26,7 @@ import ExchangePage from "@/pages/exchange";
 import KycPage from "@/pages/kyc";
 import LoadingScreen from "@/components/loading-screen";
 import BottomNavigation from "@/components/bottom-navigation";
+import PaymentCallbackPage from "@/pages/payment-callback";
 
 function Router() {
   return (
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/withdraw" component={WithdrawPage} />
       <Route path="/exchange" component={ExchangePage} />
       <Route path="/kyc" component={KycPage} />
+      <Route path="/payment-callback" component={PaymentCallbackPage} />
       <Route component={NotFound} />
     </Switch>
   );

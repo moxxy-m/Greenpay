@@ -232,12 +232,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       //   return res.status(400).json({ message: "Please complete KYC verification first" });
       // }
 
-      // For demo - simulate payment initialization
-      const reference = `GP${Date.now()}${Math.random().toString(36).substr(2, 9)}`;
-      const mockPaystackUrl = `https://checkout.paystack.com/demo?reference=${reference}&amount=6000&email=${user.email}`;
+      // Generate unique reference
+      const reference = paystackService.generateReference();
+      
+      // Initialize payment with Paystack
+      const paymentData = await paystackService.initializePayment(
+        user.email,
+        60, // $60 for virtual card
+        reference
+      );
+      
+      if (!paymentData.status) {
+        return res.status(400).json({ message: paymentData.message });
+      }
       
       res.json({ 
-        authorizationUrl: mockPaystackUrl,
+        authorizationUrl: paymentData.data.authorization_url,
         reference: reference
       });
     } catch (error) {
@@ -430,6 +440,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Card payment verification error:', error);
       res.status(500).json({ message: "Error verifying card payment" });
+    }
+  });
+
+  // Deposit payment initialization
+  app.post("/api/deposit/initialize-payment", async (req, res) => {
+    try {
+      const { userId, amount, currency } = req.body;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Generate unique reference
+      const reference = paystackService.generateReference();
+      
+      // Initialize payment with Paystack
+      const paymentData = await paystackService.initializePayment(
+        user.email,
+        parseFloat(amount),
+        reference
+      );
+      
+      if (!paymentData.status) {
+        return res.status(400).json({ message: paymentData.message });
+      }
+      
+      res.json({ 
+        authorizationUrl: paymentData.data.authorization_url,
+        reference: reference
+      });
+    } catch (error) {
+      console.error('Deposit payment initialization error:', error);
+      res.status(500).json({ message: "Error initializing deposit payment" });
+    }
+  });
+
+  // Verify deposit payment
+  app.post("/api/deposit/verify-payment", async (req, res) => {
+    try {
+      const { reference, userId, amount, currency } = req.body;
+      
+      // Verify payment with Paystack
+      const verification = await paystackService.verifyPayment(reference);
+      
+      if (!verification.status || verification.data.status !== 'success') {
+        return res.status(400).json({ message: "Payment verification failed" });
+      }
+      
+      // Create transaction record
+      const transaction = await storage.createTransaction({
+        id: `deposit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId,
+        type: 'deposit',
+        amount: amount.toString(),
+        currency: currency || 'USD',
+        status: 'completed',
+        description: `Deposit via Paystack - ${reference}`,
+        fee: '0.00',
+        reference,
+        recipientName: null,
+        recipientAccount: null,
+        recipientBank: null,
+        exchangeRate: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      
+      res.json({ 
+        message: "Deposit successful",
+        transaction
+      });
+    } catch (error) {
+      console.error('Deposit verification error:', error);
+      res.status(500).json({ message: "Error verifying deposit" });
     }
   });
 

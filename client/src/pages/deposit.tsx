@@ -12,7 +12,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
-import { mockCurrencies } from "@/lib/mock-data";
 
 const depositSchema = z.object({
   amount: z.string().min(1, "Amount is required").refine((val) => parseFloat(val) >= 10, "Minimum deposit is $10"),
@@ -39,27 +38,25 @@ export default function DepositPage() {
 
   const depositMutation = useMutation({
     mutationFn: async (data: DepositForm) => {
-      const response = await apiRequest("POST", "/api/transactions", {
+      // Initialize payment with Paystack
+      const response = await apiRequest("POST", "/api/deposit/initialize-payment", {
         userId: user?.id,
-        type: "deposit",
         amount: data.amount,
         currency: data.currency,
-        description: `Deposit via ${data.paymentMethod}`,
-        fee: "0.00",
       });
-      return response.json();
+      const result = await response.json();
+      
+      if (result.authorizationUrl) {
+        // Redirect to Paystack checkout
+        window.location.href = result.authorizationUrl;
+      }
+      
+      return result;
     },
-    onSuccess: (data) => {
+    onError: (error: any) => {
       toast({
-        title: "Deposit successful!",
-        description: `$${form.getValues("amount")} has been added to your wallet.`,
-      });
-      setLocation("/dashboard");
-    },
-    onError: () => {
-      toast({
-        title: "Deposit failed",
-        description: "Unable to process deposit. Please try again.",
+        title: "Payment Failed",
+        description: error.message || "Unable to initialize payment. Please try again.",
         variant: "destructive",
       });
     },
@@ -157,11 +154,11 @@ export default function DepositPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {mockCurrencies.slice(0, 3).map((currency) => (
-                            <SelectItem key={currency.code} value={currency.code}>
-                              {currency.symbol} {currency.code}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="USD">$ USD</SelectItem>
+                          <SelectItem value="EUR">€ EUR</SelectItem>
+                          <SelectItem value="GBP">£ GBP</SelectItem>
+                          <SelectItem value="NGN">₦ NGN</SelectItem>
+                          <SelectItem value="KES">KSh KES</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormItem>
