@@ -27,6 +27,8 @@ import KycPage from "@/pages/kyc";
 import LoadingScreen from "@/components/loading-screen";
 import BottomNavigation from "@/components/bottom-navigation";
 import PaymentCallbackPage from "@/pages/payment-callback";
+import AdminLogin from "@/pages/admin-login";
+import AdminDashboard from "@/pages/admin-dashboard";
 
 function Router() {
   return (
@@ -48,6 +50,8 @@ function Router() {
       <Route path="/exchange" component={ExchangePage} />
       <Route path="/kyc" component={KycPage} />
       <Route path="/payment-callback" component={PaymentCallbackPage} />
+      <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, timestamp, boolean, jsonb, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -161,3 +161,66 @@ export type Recipient = typeof recipients.$inferSelect;
 export type InsertRecipient = z.infer<typeof insertRecipientSchema>;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
 export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
+
+// Admin schema
+export const admins = pgTable("admins", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  fullName: text("full_name").notNull(),
+  role: text("role").notNull().default("admin"),
+  twoFactorSecret: text("two_factor_secret"),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  lastLoginAt: timestamp("last_login_at"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Admin activity logs
+export const adminLogs = pgTable("admin_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminId: varchar("admin_id").references(() => admins.id),
+  action: text("action").notNull(),
+  targetType: text("target_type"), // user, transaction, kyc, etc.
+  targetId: text("target_id"),
+  details: json("details"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// System settings
+export const systemSettings = pgTable("system_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  category: text("category").notNull(), // fees, limits, currencies, etc.
+  key: text("key").notNull(),
+  value: json("value").notNull(),
+  description: text("description"),
+  updatedBy: varchar("updated_by").references(() => admins.id),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type Admin = typeof admins.$inferSelect;
+export type AdminLog = typeof adminLogs.$inferSelect;
+export type SystemSetting = typeof systemSettings.$inferSelect;
+
+export const insertAdminSchema = createInsertSchema(admins).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAdminLogSchema = createInsertSchema(adminLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertAdmin = z.infer<typeof insertAdminSchema>;
+export type InsertAdminLog = z.infer<typeof insertAdminLogSchema>;
+export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;

@@ -40,6 +40,22 @@ const transferSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Create default admin account if none exists
+  try {
+    const existingAdmin = await storage.getAdminByEmail("admin@greenpay.com");
+    if (!existingAdmin) {
+      await storage.createAdmin({
+        email: "admin@greenpay.com",
+        password: "Admin123!@#",
+        fullName: "GreenPay Administrator",
+        role: "admin",
+        twoFactorEnabled: false
+      });
+      console.log("✅ Default admin account created: admin@greenpay.com / Admin123!@#");
+    }
+  } catch (error) {
+    console.error("Failed to create default admin:", error);
+  }
   // Authentication routes with real WhatsApp integration
   app.post("/api/auth/signup", async (req, res) => {
     try {
@@ -1108,6 +1124,292 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Payment processing error:', error);
       res.status(500).json({ message: "Error processing payment" });
+    }
+  });
+
+  // Admin Authentication Routes
+  app.post("/api/admin/login", async (req, res) => {
+    try {
+      const { email, password, twoFactorCode } = req.body;
+      
+      const admin = await storage.getAdminByEmail(email);
+      if (!admin || !admin.isActive) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const validPassword = await bcrypt.compare(password, admin.password);
+      if (!validPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Check 2FA if enabled
+      if (admin.twoFactorEnabled && admin.twoFactorSecret) {
+        if (!twoFactorCode) {
+          return res.status(401).json({ 
+            message: "2FA code required", 
+            requiresTwoFactor: true 
+          });
+        }
+
+        const verified = speakeasy.totp.verify({
+          secret: admin.twoFactorSecret,
+          encoding: 'ascii',
+          token: twoFactorCode,
+          window: 2
+        });
+
+        if (!verified) {
+          return res.status(401).json({ message: "Invalid 2FA code" });
+        }
+      }
+
+      // Update last login
+      await storage.updateAdmin(admin.id, { lastLoginAt: new Date() });
+
+      // Log admin login
+      await storage.createAdminLog({
+        adminId: admin.id,
+        action: "LOGIN",
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || null
+      });
+
+      const { password: _, ...adminData } = admin;
+      res.json({ 
+        admin: adminData,
+        message: "Login successful"
+      });
+    } catch (error) {
+      console.error('Admin login error:', error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  // Admin Dashboard Data
+  app.get("/api/admin/dashboard", async (req, res) => {
+    try {
+      const [
+        usersCount,
+        transactionsCount,
+        { volume, revenue },
+        allUsers,
+        allTransactions,
+        kycDocuments
+      ] = await Promise.all([
+        storage.getUsersCount(),
+        storage.getTransactionsCount(),
+        storage.getTotalVolume(),
+        storage.getAllUsers(),
+        storage.getAllTransactions(),
+        storage.getAllKycDocuments()
+      ]);
+
+      const activeUsers = allUsers.filter(u => u.isEmailVerified || u.isPhoneVerified).length;
+      const pendingKyc = kycDocuments.filter(d => d.status === 'pending').length;
+      const completedTransactions = allTransactions.filter(t => t.status === 'completed').length;
+      const pendingTransactions = allTransactions.filter(t => t.status === 'pending').length;
+
+      // Calculate daily transaction trends (last 7 days)
+      const today = new Date();
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        return date.toISOString().split('T')[0];
+      }).reverse();
+
+      const transactionTrends = last7Days.map(date => {
+        const dayTransactions = allTransactions.filter(t => 
+          t.createdAt && t.createdAt.toISOString().split('T')[0] === date
+        );
+        return {
+          date,
+          count: dayTransactions.length,
+          volume: dayTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0)
+        };
+      });
+
+      res.json({
+        metrics: {
+          totalUsers: usersCount,
+          activeUsers,
+          blockedUsers: allUsers.filter(u => !u.isEmailVerified && !u.isPhoneVerified).length,
+          totalTransactions: transactionsCount,
+          completedTransactions,
+          pendingTransactions,
+          totalVolume: volume,
+          totalRevenue: revenue,
+          pendingKyc
+        },
+        transactionTrends,
+        recentTransactions: allTransactions.slice(0, 10)
+      });
+    } catch (error) {
+      console.error('Dashboard data error:', error);
+      res.status(500).json({ message: "Failed to load dashboard data" });
+    }
+  });
+
+  // Admin User Management
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      const { page = 1, limit = 20, status, search } = req.query;
+      let users = await storage.getAllUsers();
+
+      // Filter by status
+      if (status) {
+        users = users.filter(user => {
+          switch (status) {
+            case 'active': return user.isEmailVerified || user.isPhoneVerified;
+            case 'pending': return user.kycStatus === 'pending';
+            case 'verified': return user.kycStatus === 'verified';
+            case 'blocked': return !user.isEmailVerified && !user.isPhoneVerified;
+            default: return true;
+          }
+        });
+      }
+
+      // Search filter
+      if (search) {
+        const searchTerm = search.toString().toLowerCase();
+        users = users.filter(user => 
+          user.fullName.toLowerCase().includes(searchTerm) ||
+          user.email.toLowerCase().includes(searchTerm) ||
+          user.phone.includes(searchTerm)
+        );
+      }
+
+      // Pagination
+      const startIndex = (Number(page) - 1) * Number(limit);
+      const paginatedUsers = users.slice(startIndex, startIndex + Number(limit));
+
+      res.json({
+        users: paginatedUsers,
+        total: users.length,
+        page: Number(page),
+        totalPages: Math.ceil(users.length / Number(limit))
+      });
+    } catch (error) {
+      console.error('Users fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Admin KYC Management
+  app.get("/api/admin/kyc", async (req, res) => {
+    try {
+      const kycDocuments = await storage.getAllKycDocuments();
+      res.json({ kycDocuments });
+    } catch (error) {
+      console.error('KYC fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch KYC documents" });
+    }
+  });
+
+  app.put("/api/admin/kyc/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, verificationNotes } = req.body;
+      
+      const updatedKyc = await storage.updateKycDocument(id, {
+        status,
+        verificationNotes,
+        verifiedAt: status === 'verified' ? new Date() : null
+      });
+
+      if (updatedKyc) {
+        // Update user KYC status
+        await storage.updateUser(updatedKyc.userId, { kycStatus: status });
+      }
+
+      res.json({ kyc: updatedKyc });
+    } catch (error) {
+      console.error('KYC update error:', error);
+      res.status(500).json({ message: "Failed to update KYC" });
+    }
+  });
+
+  // Admin Transaction Management
+  app.get("/api/admin/transactions", async (req, res) => {
+    try {
+      const { page = 1, limit = 20, status, type } = req.query;
+      let transactions = await storage.getAllTransactions();
+
+      // Filters
+      if (status) {
+        transactions = transactions.filter(t => t.status === status);
+      }
+      if (type) {
+        transactions = transactions.filter(t => t.type === type);
+      }
+
+      // Pagination
+      const startIndex = (Number(page) - 1) * Number(limit);
+      const paginatedTransactions = transactions.slice(startIndex, startIndex + Number(limit));
+
+      res.json({
+        transactions: paginatedTransactions,
+        total: transactions.length,
+        page: Number(page),
+        totalPages: Math.ceil(transactions.length / Number(limit))
+      });
+    } catch (error) {
+      console.error('Transactions fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  // Admin Virtual Cards Management
+  app.get("/api/admin/virtual-cards", async (req, res) => {
+    try {
+      const cards = await storage.getAllVirtualCards();
+      res.json({ cards });
+    } catch (error) {
+      console.error('Virtual cards fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch virtual cards" });
+    }
+  });
+
+  // Admin Logs
+  app.get("/api/admin/logs", async (req, res) => {
+    try {
+      const logs = await storage.getAdminLogs();
+      res.json({ logs });
+    } catch (error) {
+      console.error('Admin logs fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch admin logs" });
+    }
+  });
+
+  // Admin User Actions
+  app.put("/api/admin/users/:id/block", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await storage.updateUser(id, {
+        isEmailVerified: false,
+        isPhoneVerified: false
+      });
+
+      res.json({ message: "User blocked successfully" });
+    } catch (error) {
+      console.error('Block user error:', error);
+      res.status(500).json({ message: "Failed to block user" });
+    }
+  });
+
+  app.put("/api/admin/users/:id/unblock", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await storage.updateUser(id, {
+        isEmailVerified: true,
+        isPhoneVerified: true
+      });
+
+      res.json({ message: "User unblocked successfully" });
+    } catch (error) {
+      console.error('Unblock user error:', error);
+      res.status(500).json({ message: "Failed to unblock user" });
     }
   });
 

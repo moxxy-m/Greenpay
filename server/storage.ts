@@ -11,16 +11,25 @@ import {
   type InsertPaymentRequest,
   type Recipient,
   type InsertRecipient,
+  type Admin,
+  type InsertAdmin,
+  type AdminLog,
+  type InsertAdminLog,
+  type SystemSetting,
+  type InsertSystemSetting,
   users,
   kycDocuments,
   virtualCards,
   transactions,
   paymentRequests,
   recipients,
+  admins,
+  adminLogs,
+  systemSettings,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, count, sum } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 export interface IStorage {
@@ -61,6 +70,27 @@ export interface IStorage {
   getPaymentRequestsByUserId(userId: string): Promise<PaymentRequest[]>;
   getPaymentRequest(id: string): Promise<PaymentRequest | undefined>;
   updatePaymentRequest(id: string, updates: Partial<PaymentRequest>): Promise<PaymentRequest | undefined>;
+
+  // Admin operations
+  getAdminByEmail(email: string): Promise<Admin | undefined>;
+  createAdmin(admin: InsertAdmin): Promise<Admin>;
+  updateAdmin(id: string, updates: Partial<Admin>): Promise<Admin | undefined>;
+  createAdminLog(log: InsertAdminLog): Promise<AdminLog>;
+  getAdminLogs(): Promise<AdminLog[]>;
+  
+  // Admin data operations
+  getAllUsers(): Promise<User[]>;
+  getAllTransactions(): Promise<Transaction[]>;
+  getAllKycDocuments(): Promise<KycDocument[]>;
+  getAllVirtualCards(): Promise<VirtualCard[]>;
+  getUsersCount(): Promise<number>;
+  getTransactionsCount(): Promise<number>;
+  getTotalVolume(): Promise<{ volume: number; revenue: number }>;
+  
+  // System settings
+  getSystemSetting(category: string, key: string): Promise<SystemSetting | undefined>;
+  setSystemSetting(setting: InsertSystemSetting): Promise<SystemSetting>;
+  updateSystemSetting(id: string, updates: Partial<SystemSetting>): Promise<SystemSetting | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -556,6 +586,126 @@ export class DatabaseStorage implements IStorage {
 
   private generateTransactionReference(): string {
     return 'GP' + Date.now().toString() + Math.random().toString(36).substr(2, 5).toUpperCase();
+  }
+
+  // Admin operations
+  async getAdminByEmail(email: string): Promise<Admin | undefined> {
+    const [admin] = await db.select().from(admins).where(eq(admins.email, email));
+    return admin || undefined;
+  }
+
+  async createAdmin(insertAdmin: InsertAdmin): Promise<Admin> {
+    const hashedPassword = await bcrypt.hash(insertAdmin.password, 10);
+    const [admin] = await db
+      .insert(admins)
+      .values({ ...insertAdmin, password: hashedPassword })
+      .returning();
+    return admin;
+  }
+
+  async updateAdmin(id: string, updates: Partial<Admin>): Promise<Admin | undefined> {
+    const [admin] = await db
+      .update(admins)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(admins.id, id))
+      .returning();
+    return admin || undefined;
+  }
+
+  async createAdminLog(insertLog: InsertAdminLog): Promise<AdminLog> {
+    const [log] = await db
+      .insert(adminLogs)
+      .values(insertLog)
+      .returning();
+    return log;
+  }
+
+  async getAdminLogs(): Promise<AdminLog[]> {
+    return await db
+      .select()
+      .from(adminLogs)
+      .orderBy(desc(adminLogs.createdAt));
+  }
+
+  // Admin data operations
+  async getAllUsers(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt));
+  }
+
+  async getAllTransactions(): Promise<Transaction[]> {
+    return await db
+      .select()
+      .from(transactions)
+      .orderBy(desc(transactions.createdAt));
+  }
+
+  async getAllKycDocuments(): Promise<KycDocument[]> {
+    return await db
+      .select()
+      .from(kycDocuments)
+      .orderBy(desc(kycDocuments.createdAt));
+  }
+
+  async getAllVirtualCards(): Promise<VirtualCard[]> {
+    return await db
+      .select()
+      .from(virtualCards)
+      .orderBy(desc(virtualCards.purchaseDate));
+  }
+
+  async getUsersCount(): Promise<number> {
+    const result = await db.select({ count: count() }).from(users);
+    return result[0].count;
+  }
+
+  async getTransactionsCount(): Promise<number> {
+    const result = await db.select({ count: count() }).from(transactions);
+    return result[0].count;
+  }
+
+  async getTotalVolume(): Promise<{ volume: number; revenue: number }> {
+    const volumeResult = await db
+      .select({ 
+        totalVolume: sum(transactions.amount).mapWith(Number),
+        totalFees: sum(transactions.fee).mapWith(Number)
+      })
+      .from(transactions)
+      .where(eq(transactions.status, 'completed'));
+
+    return {
+      volume: volumeResult[0].totalVolume || 0,
+      revenue: volumeResult[0].totalFees || 0
+    };
+  }
+
+  // System settings
+  async getSystemSetting(category: string, key: string): Promise<SystemSetting | undefined> {
+    const [setting] = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.category, category))
+      .where(eq(systemSettings.key, key));
+    return setting || undefined;
+  }
+
+  async setSystemSetting(insertSetting: InsertSystemSetting): Promise<SystemSetting> {
+    const [setting] = await db
+      .insert(systemSettings)
+      .values(insertSetting)
+      .returning();
+    return setting;
+  }
+
+  async updateSystemSetting(id: string, updates: Partial<SystemSetting>): Promise<SystemSetting | undefined> {
+    const [setting] = await db
+      .update(systemSettings)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(systemSettings.id, id))
+      .returning();
+    return setting || undefined;
   }
 }
 
