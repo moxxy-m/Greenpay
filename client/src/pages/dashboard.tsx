@@ -167,13 +167,13 @@ export default function DashboardPage() {
                   <span className="material-icons text-green-100 ml-1 text-sm">verified</span>
                 )}
               </p>
-              <p className="text-3xl font-bold" data-testid="text-balance">
+              <p className="text-2xl font-bold" data-testid="text-balance">
                 {showBalance ? `$${realTimeBalance.toFixed(2)}` : "••••••"}
               </p>
-              <p className="text-green-200 text-sm">
+              <p className="text-green-200 text-xs">
                 ≈ ₦{showBalance ? balanceInNGN : '••••'} • KSh{showBalance ? balanceInKES : '••••'}
               </p>
-              <p className="text-green-100 text-xs opacity-75">Live rates • Updates every 30s</p>
+              <p className="text-green-100 text-xs opacity-75">Live rates</p>
             </div>
             <motion.button
               whileTap={{ scale: 0.95 }}

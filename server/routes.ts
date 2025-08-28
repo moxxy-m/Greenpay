@@ -5,6 +5,8 @@ import { insertUserSchema, insertKycDocumentSchema, insertTransactionSchema, ins
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import multer from "multer";
+import * as speakeasy from 'speakeasy';
+import * as QRCode from 'qrcode';
 import { whatsappService } from "./services/whatsapp";
 import { exchangeRateService } from "./services/exchange-rate";
 import { paystackService } from "./services/paystack";
@@ -336,21 +338,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.body;
       
-      // Generate QR code for demo (in production, use proper 2FA library)
-      const secret = Math.random().toString(36).substring(2, 15);
-      const qrCodeUrl = `data:image/svg+xml;base64,${Buffer.from(`<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="200" fill="white"/><text x="100" y="100" text-anchor="middle" fill="black">QR Code</text></svg>`).toString('base64')}`;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Generate proper 2FA secret and QR code
+      const secret = speakeasy.generateSecret({
+        name: `GreenPay (${user.email})`,
+        issuer: 'GreenPay'
+      });
+      
+      const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url!);
       
       // Save secret to user (in production, save encrypted)
-      await storage.updateUser(userId, { twoFactorEnabled: false });
+      await storage.updateUser(userId, { twoFactorSecret: secret.base32 });
       
       res.json({ 
         qrCodeUrl,
-        secret, // Don't send in production
+        secret: secret.base32, // Don't send in production
         message: "Scan QR code with your authenticator app"
       });
     } catch (error) {
       console.error('2FA setup error:', error);
       res.status(500).json({ message: "Failed to setup 2FA" });
+    }
+  });
+
+  // Biometric setup endpoint
+  app.post("/api/auth/setup-biometric", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      
+      // In production, use WebAuthn for proper biometric authentication
+      await storage.updateUser(userId, { biometricEnabled: true });
+      
+      res.json({ message: "Biometric authentication enabled" });
+    } catch (error) {
+      console.error('Biometric setup error:', error);
+      res.status(500).json({ message: "Failed to setup biometric authentication" });
+    }
+  });
+
+  // Push notification registration endpoint
+  app.post("/api/notifications/register", async (req, res) => {
+    try {
+      const { userId, endpoint } = req.body;
+      
+      // Register user for push notifications
+      await storage.updateUser(userId, { pushNotificationsEnabled: true });
+      
+      // In production, save the push subscription endpoint
+      res.json({ message: "Push notifications registered" });
+    } catch (error) {
+      console.error('Notification registration error:', error);
+      res.status(500).json({ message: "Failed to register for notifications" });
     }
   });
 

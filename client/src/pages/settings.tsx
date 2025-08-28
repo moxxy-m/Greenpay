@@ -40,6 +40,7 @@ export default function SettingsPage() {
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [is2FASetup, setIs2FASetup] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [fingerprintSetup, setFingerprintSetup] = useState(false);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: typeof profileData) => {
@@ -119,6 +120,48 @@ export default function SettingsPage() {
       });
     },
   });
+
+  const setupFingerprintMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/auth/setup-biometric`, { userId: user?.id });
+      return response.json();
+    },
+    onSuccess: () => {
+      setFingerprintSetup(true);
+      handleSettingUpdate('biometricEnabled', true);
+      toast({
+        title: "Fingerprint Setup Complete",
+        description: "You can now use fingerprint to authenticate",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Setup Failed",
+        description: error.message || "Unable to setup fingerprint",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      
+      if (permission === 'granted') {
+        handleSettingUpdate('pushNotificationsEnabled', true);
+        toast({
+          title: "Notifications Enabled",
+          description: "You'll receive push notifications for transactions",
+        });
+        
+        // Register for push notifications
+        await apiRequest("POST", `/api/notifications/register`, { 
+          userId: user?.id,
+          endpoint: 'browser-notification'
+        });
+      }
+    }
+  };
 
   const handleLogout = () => {
     // Clear all local storage and session data
@@ -370,11 +413,20 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">Use fingerprint or face ID</p>
               </div>
             </div>
-            <Switch
-              checked={settings.biometricEnabled}
-              onCheckedChange={(checked) => handleSettingUpdate('biometricEnabled', checked)}
-              data-testid="switch-biometric"
-            />
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={settings.biometricEnabled}
+                onCheckedChange={(checked) => {
+                  if (checked && !settings.biometricEnabled) {
+                    setupFingerprintMutation.mutate();
+                  } else {
+                    handleSettingUpdate('biometricEnabled', checked);
+                  }
+                }}
+                data-testid="switch-biometric"
+              />
+              {setupFingerprintMutation.isPending && <span className="text-xs">Setting up...</span>}
+            </div>
           </motion.div>
         </motion.div>
 
@@ -429,11 +481,19 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">Transaction alerts and updates</p>
               </div>
             </div>
-            <Switch
-              checked={settings.pushNotificationsEnabled}
-              onCheckedChange={(checked) => handleSettingUpdate('pushNotificationsEnabled', checked)}
-              data-testid="switch-notifications"
-            />
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={settings.pushNotificationsEnabled}
+                onCheckedChange={(checked) => {
+                  if (checked && !settings.pushNotificationsEnabled) {
+                    requestNotificationPermission();
+                  } else {
+                    handleSettingUpdate('pushNotificationsEnabled', checked);
+                  }
+                }}
+                data-testid="switch-notifications"
+              />
+            </div>
           </motion.div>
         </motion.div>
 

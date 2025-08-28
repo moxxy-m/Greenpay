@@ -59,7 +59,7 @@ export default function SignupPage() {
         title: "Account created!",
         description: "Welcome to GreenPay! Complete your profile to get started.",
       });
-      setLocation("/kyc-verification");
+      setLocation("/dashboard");
     },
     onError: () => {
       toast({

@@ -201,7 +201,7 @@ export default function VirtualCardPage() {
               <Button
                 onClick={() => purchaseCardMutation.mutate()}
                 className="w-full text-lg py-3"
-                disabled={purchaseCardMutation.isPending}
+                disabled={false}
                 data-testid="button-purchase-card"
               >
                 {purchaseCardMutation.isPending ? "Processing..." : "Purchase Card - $60.00"}
