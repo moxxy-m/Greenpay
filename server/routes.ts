@@ -232,9 +232,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       //   return res.status(400).json({ message: "Please complete KYC verification first" });
       // }
 
-      // For demo - simulate payment initialization with unique reference
-      const reference = `GP${userId.slice(0, 8)}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const mockPaystackUrl = `https://checkout.paystack.com/demo?reference=${reference}&amount=6000&email=${encodeURIComponent(user.email)}`;
+      // For demo - simulate payment initialization
+      const reference = `GP${Date.now()}${Math.random().toString(36).substr(2, 9)}`;
+      const mockPaystackUrl = `https://checkout.paystack.com/demo?reference=${reference}&amount=6000&email=${user.email}`;
       
       res.json({ 
         authorizationUrl: mockPaystackUrl,
