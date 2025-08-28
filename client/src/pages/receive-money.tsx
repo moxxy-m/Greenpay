@@ -193,7 +193,7 @@ export default function ReceiveMoneyPage() {
                 <h3 className="font-semibold">Share Account Details</h3>
                 <button
                   onClick={() => {
-                    const details = `Account: GP-${user?.id?.slice(-9)}\nEmail: ${user?.email}\nPhone: ${user?.phone}`;
+                    const details = `Account: GP-${user?.id?.slice(-9)}\nBank: GreenPay Digital Bank\nName: ${user?.fullName}`;
                     navigator.clipboard.writeText(details);
                     toast({ title: "All details copied!" });
                   }}
@@ -221,14 +221,14 @@ export default function ReceiveMoneyPage() {
 
                 <div className="flex justify-between items-center p-3 bg-muted rounded-xl">
                   <div>
-                    <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium">{user?.email}</p>
+                    <p className="text-sm text-muted-foreground">Bank Name</p>
+                    <p className="font-medium">GreenPay Digital Bank</p>
                   </div>
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => handleCopyAccountDetail(user?.email || "", "Email")}
+                    onClick={() => handleCopyAccountDetail("GreenPay Digital Bank", "Bank name")}
                     className="material-icons text-muted-foreground hover:text-foreground transition-colors"
-                    data-testid="button-copy-email"
+                    data-testid="button-copy-bank"
                   >
                     content_copy
                   </motion.button>
@@ -236,14 +236,14 @@ export default function ReceiveMoneyPage() {
 
                 <div className="flex justify-between items-center p-3 bg-muted rounded-xl">
                   <div>
-                    <p className="text-sm text-muted-foreground">Phone</p>
-                    <p className="font-medium">{user?.phone}</p>
+                    <p className="text-sm text-muted-foreground">Account Name</p>
+                    <p className="font-medium">{user?.fullName}</p>
                   </div>
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => handleCopyAccountDetail(user?.phone || "", "Phone number")}
+                    onClick={() => handleCopyAccountDetail(user?.fullName || "", "Account name")}
                     className="material-icons text-muted-foreground hover:text-foreground transition-colors"
-                    data-testid="button-copy-phone"
+                    data-testid="button-copy-name"
                   >
                     content_copy
                   </motion.button>

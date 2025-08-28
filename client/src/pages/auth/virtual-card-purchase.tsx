@@ -35,7 +35,20 @@ export default function VirtualCardPurchasePage() {
   });
 
   const handlePurchase = () => {
-    initializePayment.mutate();
+    initializePayment.mutate(undefined, {
+      onSuccess: (data) => {
+        if (data.authorization_url) {
+          window.location.href = data.authorization_url;
+        }
+      },
+      onError: (error) => {
+        toast({
+          title: "Payment Failed",
+          description: "Unable to initialize payment. Please try again.",
+          variant: "destructive",
+        });
+      }
+    });
   };
 
   return (
@@ -47,7 +60,7 @@ export default function VirtualCardPurchasePage() {
       >
         <motion.button
           whileTap={{ scale: 0.95 }}
-          onClick={() => setLocation("/kyc-verification")}
+          onClick={() => setLocation("/dashboard")}
           className="material-icons text-muted-foreground mr-3 p-2 rounded-full hover:bg-muted transition-colors"
           data-testid="button-back"
         >
@@ -134,13 +147,13 @@ export default function VirtualCardPurchasePage() {
             <Button
               onClick={handlePurchase}
               className="w-full ripple"
-              disabled={purchaseCardMutation.isPending}
+              disabled={initializePayment.isPending}
               data-testid="button-purchase-card"
             >
-              {purchaseCardMutation.isPending ? "Processing..." : "Purchase Virtual Card - $60"}
+              {initializePayment.isPending ? "Processing..." : "Purchase Virtual Card - $60"}
             </Button>
 
-            <p className="text-xs text-muted-foreground">Secure payment powered by Stripe</p>
+            <p className="text-xs text-muted-foreground">Secure payment powered by Paystack</p>
           </motion.div>
         </motion.div>
       </div>

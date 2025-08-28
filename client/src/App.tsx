@@ -22,6 +22,7 @@ import SettingsPage from "@/pages/settings";
 import SupportPage from "@/pages/support";
 import DepositPage from "@/pages/deposit";
 import WithdrawPage from "@/pages/withdraw";
+import ExchangePage from "@/pages/exchange";
 import LoadingScreen from "@/components/loading-screen";
 import BottomNavigation from "@/components/bottom-navigation";
 
@@ -45,6 +46,7 @@ function Router() {
       <Route path="/support" component={SupportPage} />
       <Route path="/deposit" component={DepositPage} />
       <Route path="/withdraw" component={WithdrawPage} />
+      <Route path="/exchange" component={ExchangePage} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -662,7 +662,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/payment-requests", async (req, res) => {
     try {
       const requestData = insertPaymentRequestSchema.parse(req.body);
-      const request = await storage.createPaymentRequest(requestData);
+      
+      // Generate unique payment link
+      const paymentId = Math.random().toString(36).substring(2, 15);
+      const paymentLink = `${req.protocol}://${req.get('host')}/pay/${paymentId}`;
+      
+      const request = await storage.createPaymentRequest({
+        ...requestData,
+        paymentLink,
+      });
       
       // Send notification if recipient has account
       if (requestData.toEmail || requestData.toPhone) {

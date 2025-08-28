@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   otpCode: text("otp_code"),
   otpExpiry: timestamp("otp_expiry"),
   paystackCustomerId: text("paystack_customer_id"),
+  defaultCurrency: text("default_currency").default("KES"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -133,7 +134,6 @@ export const insertVirtualCardSchema = createInsertSchema(virtualCards).omit({
 
 export const insertTransactionSchema = createInsertSchema(transactions).omit({
   id: true,
-  status: true,
   createdAt: true,
 });
 

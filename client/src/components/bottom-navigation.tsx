@@ -21,8 +21,8 @@ export default function BottomNavigation() {
   const [location, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
 
-  // Hide bottom navigation in external windows (browser)
-  const isExternal = window.matchMedia('(display-mode: browser)').matches;
+  // Hide bottom navigation in external windows and non-authenticated pages
+  const isExternal = window.opener !== null || window.parent !== window;
   
   // Only show bottom navigation on authenticated pages and not in external view
   const showBottomNav = !isExternal && isAuthenticated && (

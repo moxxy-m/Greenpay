@@ -104,15 +104,6 @@ export default function WithdrawPage() {
       countries: ["Kenya", "Uganda", "Tanzania", "Rwanda", "Cameroon"],
     },
     {
-      id: "western-union",
-      name: "Western Union",
-      icon: "location_on",
-      description: "Cash pickup at Western Union locations",
-      fee: "$4.99",
-      processingTime: "Within 15 minutes",
-      countries: ["Nigeria", "Ghana", "Senegal", "Mali", "Burkina Faso"],
-    },
-    {
       id: "local-bank",
       name: "Local Bank Account",
       icon: "account_balance_wallet",
