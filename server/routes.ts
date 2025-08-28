@@ -304,7 +304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/kyc/:userId", async (req, res) => {
     try {
       const { userId } = req.params;
-      const kyc = await storage.getKYCByUserId(userId);
+      const kyc = await storage.getKycByUserId(userId);
       res.json({ kyc: kyc || { status: 'pending', documentType: 'national_id' } });
     } catch (error) {
       console.error('KYC fetch error:', error);
@@ -504,8 +504,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recipientAccount: null,
         recipientBank: null,
         exchangeRate: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
       
       res.json({ 
