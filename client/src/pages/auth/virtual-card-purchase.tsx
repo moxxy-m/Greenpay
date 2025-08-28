@@ -1,45 +1,41 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { apiRequest } from "@/lib/queryClient";
+import { useInitializeCardPayment, useVerifyCardPayment } from "@/hooks/use-paystack";
 
 export default function VirtualCardPurchasePage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user, login } = useAuth();
 
-  const purchaseCardMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/virtual-card/purchase", {
-        userId: user?.id,
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      // Update user state to reflect virtual card purchase
-      if (user) {
-        login({ ...user, hasVirtualCard: true });
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  const initializePayment = useInitializeCardPayment();
+  const verifyPayment = useVerifyCardPayment();
+
+  // Listen for payment completion (in real app, use webhooks)
+  useState(() => {
+    const checkPaymentStatus = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const reference = urlParams.get('reference');
+      const status = urlParams.get('status');
+      
+      if (reference && status === 'success') {
+        verifyPayment.mutate(reference, {
+          onSuccess: () => {
+            setLocation('/dashboard');
+          }
+        });
       }
-      toast({
-        title: "Virtual card purchased!",
-        description: "Your virtual card is now active and ready to use.",
-      });
-      setLocation("/dashboard");
-    },
-    onError: () => {
-      toast({
-        title: "Purchase failed",
-        description: "Unable to purchase virtual card. Please try again.",
-        variant: "destructive",
-      });
-    },
+    };
+    
+    checkPaymentStatus();
   });
 
   const handlePurchase = () => {
-    purchaseCardMutation.mutate();
+    initializePayment.mutate();
   };
 
   return (

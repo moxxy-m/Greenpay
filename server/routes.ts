@@ -3,6 +3,22 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertKycDocumentSchema, insertTransactionSchema, insertPaymentRequestSchema } from "@shared/schema";
 import { z } from "zod";
+import bcrypt from "bcrypt";
+import multer from "multer";
+import { whatsappService } from "./services/whatsapp";
+import { exchangeRateService } from "./services/exchange-rate";
+import { paystackService } from "./services/paystack";
+import { twoFactorService } from "./services/2fa";
+import { biometricService } from "./services/biometric";
+import { notificationService } from "./services/notifications";
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+});
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -14,7 +30,7 @@ const otpSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Authentication routes
+  // Authentication routes with real WhatsApp integration
   app.post("/api/auth/signup", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
@@ -25,13 +41,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "User already exists" });
       }
 
-      // In a real app, hash the password
+      // Create user with hashed password (now handled in storage)
       const user = await storage.createUser(userData);
+      
+      // Send OTP via WhatsApp
+      const otpCode = whatsappService.generateOTP();
+      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      
+      await storage.updateUserOtp(user.id, otpCode, otpExpiry);
+      await whatsappService.sendOTP(userData.phone, otpCode);
       
       // Remove password from response
       const { password, ...userResponse } = user;
-      res.json({ user: userResponse });
+      res.json({ user: userResponse, message: "OTP sent to your phone" });
     } catch (error) {
+      console.error('Signup error:', error);
       res.status(400).json({ message: "Invalid user data" });
     }
   });
@@ -41,14 +65,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { email, password } = loginSchema.parse(req.body);
       
       const user = await storage.getUserByEmail(email);
-      if (!user || user.password !== password) {
+      if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
+
+      // Verify password using bcrypt
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Send security notification
+      await notificationService.sendSecurityNotification(
+        user.id,
+        "New login detected from your account"
+      );
 
       // Remove password from response
       const { password: _, ...userResponse } = user;
       res.json({ user: userResponse });
     } catch (error) {
+      console.error('Login error:', error);
       res.status(400).json({ message: "Invalid login data" });
     }
   });
@@ -58,30 +95,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { code } = otpSchema.parse(req.body);
       const { userId } = req.body;
       
-      // Mock OTP verification - in real app, verify against stored OTP
-      if (code === "123456") {
-        await storage.updateUser(userId, { isPhoneVerified: true });
-        res.json({ success: true });
+      // Verify OTP against stored code
+      const isValid = await storage.verifyUserOtp(userId, code);
+      
+      if (isValid) {
+        const user = await storage.getUser(userId);
+        const { password, ...userResponse } = user!;
+        res.json({ success: true, user: userResponse });
       } else {
-        res.status(400).json({ message: "Invalid OTP code" });
+        res.status(400).json({ message: "Invalid or expired OTP code" });
       }
     } catch (error) {
+      console.error('OTP verification error:', error);
       res.status(400).json({ message: "Invalid OTP data" });
     }
   });
 
-  // KYC routes
-  app.post("/api/kyc/submit", async (req, res) => {
+  // Resend OTP
+  app.post("/api/auth/resend-otp", async (req, res) => {
     try {
-      const kycData = insertKycDocumentSchema.parse(req.body);
+      const { userId } = req.body;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const otpCode = whatsappService.generateOTP();
+      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      
+      await storage.updateUserOtp(user.id, otpCode, otpExpiry);
+      await whatsappService.sendOTP(user.phone, otpCode);
+      
+      res.json({ message: "New OTP sent to your phone" });
+    } catch (error) {
+      console.error('Resend OTP error:', error);
+      res.status(500).json({ message: "Failed to resend OTP" });
+    }
+  });
+
+  // KYC routes with file upload
+  app.post("/api/kyc/submit", upload.fields([
+    { name: 'frontImage', maxCount: 1 },
+    { name: 'backImage', maxCount: 1 },
+    { name: 'selfie', maxCount: 1 }
+  ]), async (req, res) => {
+    try {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const { userId, documentType, dateOfBirth, address } = req.body;
+      
+      // In a real app, upload files to cloud storage (AWS S3, Cloudinary, etc.)
+      const frontImageUrl = files.frontImage ? `uploads/kyc/${userId}_front_${Date.now()}.jpg` : null;
+      const backImageUrl = files.backImage ? `uploads/kyc/${userId}_back_${Date.now()}.jpg` : null;
+      const selfieUrl = files.selfie ? `uploads/kyc/${userId}_selfie_${Date.now()}.jpg` : null;
+      
+      const kycData = {
+        userId,
+        documentType,
+        dateOfBirth,
+        address,
+        frontImageUrl,
+        backImageUrl,
+        selfieUrl
+      };
+      
       const kyc = await storage.createKycDocument(kycData);
       
-      // Auto-approve for demo
-      await storage.updateKycDocument(kyc.id, { status: "verified" });
-      await storage.updateUser(kycData.userId, { kycStatus: "verified" });
+      // Update user KYC status to submitted
+      await storage.updateUser(userId, { kycStatus: "submitted" });
       
-      res.json({ kyc });
+      // Send notification
+      await notificationService.sendNotification({
+        title: "KYC Documents Submitted",
+        body: "Your verification documents have been received and are under review",
+        userId,
+        type: "general"
+      });
+      
+      res.json({ kyc, message: "KYC documents submitted successfully" });
     } catch (error) {
+      console.error('KYC submission error:', error);
       res.status(400).json({ message: "Invalid KYC data" });
     }
   });
@@ -95,33 +188,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Virtual Card routes
-  app.post("/api/virtual-card/purchase", async (req, res) => {
+  // Virtual Card routes with Paystack integration
+  app.post("/api/virtual-card/initialize-payment", async (req, res) => {
     try {
       const { userId } = req.body;
+      const user = await storage.getUser(userId);
       
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
       // Check if user already has a card
       const existingCard = await storage.getVirtualCardByUserId(userId);
       if (existingCard) {
         return res.status(400).json({ message: "User already has a virtual card" });
       }
 
-      const card = await storage.createVirtualCard({ userId });
+      // Check if user has completed KYC
+      if (user.kycStatus !== "verified") {
+        return res.status(400).json({ message: "Please complete KYC verification first" });
+      }
+
+      // Initialize Paystack payment
+      const reference = paystackService.generateReference();
+      const paymentData = await paystackService.initializePayment(
+        user.email,
+        60, // $60 USD
+        reference
+      );
+
+      if (!paymentData.status) {
+        return res.status(400).json({ message: "Failed to initialize payment" });
+      }
+
+      res.json({ 
+        authorizationUrl: paymentData.data.authorization_url,
+        reference: paymentData.data.reference
+      });
+    } catch (error) {
+      console.error('Card payment initialization error:', error);
+      res.status(500).json({ message: "Error initializing card payment" });
+    }
+  });
+
+  app.post("/api/virtual-card/verify-payment", async (req, res) => {
+    try {
+      const { reference, userId } = req.body;
+      
+      // Verify payment with Paystack
+      const verification = await paystackService.verifyPayment(reference);
+      
+      if (!verification.status || verification.data.status !== 'success') {
+        return res.status(400).json({ message: "Payment verification failed" });
+      }
+
+      // Create virtual card
+      const card = await storage.createVirtualCard({ 
+        userId,
+        paystackReference: reference
+      });
+      
       await storage.updateUser(userId, { hasVirtualCard: true });
       
-      // Create transaction record for card purchase
-      await storage.createTransaction({
+      // Create transaction record
+      const transaction = await storage.createTransaction({
         userId,
         type: "card_purchase",
         amount: "60.00",
         currency: "USD",
         description: "Virtual Card Purchase",
         fee: "0.00",
+        paystackReference: reference,
+        status: "completed"
       });
 
-      res.json({ card });
+      // Send notifications
+      await notificationService.sendTransactionNotification(userId, transaction);
+      
+      res.json({ card, transaction, message: "Virtual card purchased successfully!" });
     } catch (error) {
-      res.status(500).json({ message: "Error purchasing virtual card" });
+      console.error('Card payment verification error:', error);
+      res.status(500).json({ message: "Error verifying card payment" });
     }
   });
 
@@ -134,20 +281,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Transaction routes
-  app.post("/api/transactions", async (req, res) => {
+  // Exchange rates API
+  app.get("/api/exchange-rates/:from/:to", async (req, res) => {
     try {
-      const transactionData = insertTransactionSchema.parse(req.body);
-      const transaction = await storage.createTransaction(transactionData);
+      const { from, to } = req.params;
+      const rate = await exchangeRateService.getExchangeRate(from.toUpperCase(), to.toUpperCase());
       
-      // Auto-complete for demo
-      setTimeout(async () => {
-        await storage.updateTransaction(transaction.id, { status: "completed" });
-      }, 2000);
-      
-      res.json({ transaction });
+      res.json({ 
+        from: from.toUpperCase(),
+        to: to.toUpperCase(),
+        rate,
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
-      res.status(400).json({ message: "Invalid transaction data" });
+      console.error('Exchange rate error:', error);
+      res.status(500).json({ message: "Error fetching exchange rate" });
+    }
+  });
+
+  app.get("/api/exchange-rates/:base", async (req, res) => {
+    try {
+      const { base } = req.params;
+      const targets = ['NGN', 'GHS', 'KES', 'ZAR', 'EGP', 'XOF', 'XAF'];
+      const rates = await exchangeRateService.getMultipleRates(base.toUpperCase(), targets);
+      
+      res.json({ 
+        base: base.toUpperCase(),
+        rates,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Multiple exchange rates error:', error);
+      res.status(500).json({ message: "Error fetching exchange rates" });
+    }
+  });
+
+  // Real-time Transaction routes
+  app.post("/api/transactions/send", async (req, res) => {
+    try {
+      const { userId, amount, currency, recipientDetails, targetCurrency } = req.body;
+      
+      // Verify user has virtual card
+      const user = await storage.getUser(userId);
+      if (!user?.hasVirtualCard) {
+        return res.status(400).json({ message: "Virtual card required for transactions" });
+      }
+
+      // Get real-time exchange rate
+      const exchangeRate = await exchangeRateService.getExchangeRate(currency, targetCurrency);
+      const convertedAmount = (parseFloat(amount) * exchangeRate).toFixed(2);
+      const fee = (parseFloat(amount) * 0.02).toFixed(2); // 2% fee
+      
+      // Create transaction
+      const transaction = await storage.createTransaction({
+        userId,
+        type: "send",
+        amount,
+        currency,
+        recipientDetails,
+        status: "processing",
+        fee,
+        exchangeRate: exchangeRate.toString(),
+        description: `Sent to ${recipientDetails.name}`,
+        metadata: {
+          convertedAmount,
+          targetCurrency,
+          processingStarted: new Date().toISOString()
+        }
+      });
+
+      // Simulate processing time (in real app, this would be async)
+      setTimeout(async () => {
+        try {
+          await storage.updateTransaction(transaction.id, { 
+            status: "completed",
+            completedAt: new Date()
+          });
+          
+          // Send notification
+          await notificationService.sendTransactionNotification(userId, {
+            ...transaction,
+            status: "completed"
+          });
+        } catch (error) {
+          console.error('Transaction completion error:', error);
+        }
+      }, 5000); // 5 second delay
+      
+      res.json({ 
+        transaction,
+        convertedAmount,
+        exchangeRate,
+        message: "Transaction initiated successfully"
+      });
+    } catch (error) {
+      console.error('Send transaction error:', error);
+      res.status(400).json({ message: "Transaction failed" });
+    }
+  });
+
+  app.post("/api/transactions/receive", async (req, res) => {
+    try {
+      const { userId, amount, currency, senderDetails } = req.body;
+      
+      const transaction = await storage.createTransaction({
+        userId,
+        type: "receive",
+        amount,
+        currency,
+        recipientDetails: senderDetails,
+        status: "completed",
+        fee: "0.00",
+        description: `Received from ${senderDetails.name}`
+      });
+
+      // Update user balance
+      const user = await storage.getUser(userId);
+      const newBalance = (parseFloat(user?.balance || "0") + parseFloat(amount)).toFixed(2);
+      await storage.updateUser(userId, { balance: newBalance });
+      
+      // Send notification
+      await notificationService.sendTransactionNotification(userId, transaction);
+      
+      res.json({ transaction, message: "Payment received successfully" });
+    } catch (error) {
+      console.error('Receive transaction error:', error);
+      res.status(400).json({ message: "Transaction failed" });
     }
   });
 
@@ -160,12 +419,156 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/transactions/status/:transactionId", async (req, res) => {
+    try {
+      const transaction = await storage.getTransaction(req.params.transactionId);
+      if (!transaction) {
+        return res.status(404).json({ message: "Transaction not found" });
+      }
+      res.json({ transaction });
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching transaction status" });
+    }
+  });
+
+  // 2FA routes
+  app.post("/api/auth/2fa/setup", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const { secret, qrCodeUrl, backupCodes } = twoFactorService.generateSecret(user.email);
+      const qrCode = await twoFactorService.generateQRCode(secret, user.email);
+      
+      // Store secret temporarily (user needs to verify before enabling)
+      await storage.updateUser(userId, { twoFactorSecret: secret });
+      
+      res.json({ qrCode, backupCodes, secret });
+    } catch (error) {
+      console.error('2FA setup error:', error);
+      res.status(500).json({ message: "Error setting up 2FA" });
+    }
+  });
+
+  app.post("/api/auth/2fa/verify", async (req, res) => {
+    try {
+      const { userId, token } = req.body;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.twoFactorSecret) {
+        return res.status(400).json({ message: "2FA not set up" });
+      }
+
+      const isValid = twoFactorService.verifyToken(user.twoFactorSecret, token);
+      
+      if (isValid) {
+        await storage.updateUser(userId, { twoFactorEnabled: true });
+        res.json({ success: true, message: "2FA enabled successfully" });
+      } else {
+        res.status(400).json({ message: "Invalid 2FA token" });
+      }
+    } catch (error) {
+      console.error('2FA verification error:', error);
+      res.status(500).json({ message: "Error verifying 2FA" });
+    }
+  });
+
+  // Biometric authentication routes
+  app.post("/api/auth/biometric/setup", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      const challenge = await biometricService.generateChallenge(userId);
+      
+      res.json({ challenge });
+    } catch (error) {
+      console.error('Biometric setup error:', error);
+      res.status(500).json({ message: "Error setting up biometric authentication" });
+    }
+  });
+
+  app.post("/api/auth/biometric/register", async (req, res) => {
+    try {
+      const { userId, credential, challenge } = req.body;
+      
+      const success = await biometricService.registerBiometric(userId, credential);
+      
+      if (success) {
+        await storage.updateUser(userId, { biometricEnabled: true });
+        res.json({ success: true, message: "Biometric authentication enabled" });
+      } else {
+        res.status(400).json({ message: "Failed to register biometric" });
+      }
+    } catch (error) {
+      console.error('Biometric registration error:', error);
+      res.status(500).json({ message: "Error registering biometric" });
+    }
+  });
+
+  app.post("/api/auth/biometric/verify", async (req, res) => {
+    try {
+      const { userId, challenge, response } = req.body;
+      
+      const isValid = await biometricService.verifyBiometric(userId, challenge, response);
+      
+      if (isValid) {
+        res.json({ success: true, message: "Biometric verification successful" });
+      } else {
+        res.status(400).json({ message: "Biometric verification failed" });
+      }
+    } catch (error) {
+      console.error('Biometric verification error:', error);
+      res.status(500).json({ message: "Error verifying biometric" });
+    }
+  });
+
+  // Push notifications
+  app.post("/api/notifications/register", async (req, res) => {
+    try {
+      const { userId, token } = req.body;
+      
+      const success = await notificationService.registerPushToken(userId, token);
+      
+      if (success) {
+        res.json({ success: true, message: "Push notifications registered" });
+      } else {
+        res.status(400).json({ message: "Failed to register push notifications" });
+      }
+    } catch (error) {
+      console.error('Push notification registration error:', error);
+      res.status(500).json({ message: "Error registering push notifications" });
+    }
+  });
+
+  // User settings
+  app.put("/api/users/:userId/settings", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const settings = req.body;
+      
+      const user = await storage.updateUser(userId, settings);
+      
+      if (user) {
+        const { password, ...userResponse } = user;
+        res.json({ user: userResponse, message: "Settings updated successfully" });
+      } else {
+        res.status(404).json({ message: "User not found" });
+      }
+    } catch (error) {
+      console.error('Settings update error:', error);
+      res.status(500).json({ message: "Error updating settings" });
+    }
+  });
+
   // Payment Request routes
   app.post("/api/payment-requests", async (req, res) => {
     try {
       const requestData = insertPaymentRequestSchema.parse(req.body);
-      const paymentRequest = await storage.createPaymentRequest(requestData);
-      res.json({ paymentRequest });
+      const request = await storage.createPaymentRequest(requestData);
+      res.json({ request });
     } catch (error) {
       res.status(400).json({ message: "Invalid payment request data" });
     }
@@ -180,21 +583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User routes
-  app.get("/api/users/:id", async (req, res) => {
-    try {
-      const user = await storage.getUser(req.params.id);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      
-      const { password, ...userResponse } = user;
-      res.json({ user: userResponse });
-    } catch (error) {
-      res.status(500).json({ message: "Error fetching user" });
-    }
-  });
-
   const httpServer = createServer(app);
+
   return httpServer;
 }

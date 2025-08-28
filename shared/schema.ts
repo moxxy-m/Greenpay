@@ -14,7 +14,16 @@ export const users = pgTable("users", {
   isPhoneVerified: boolean("is_phone_verified").default(false),
   kycStatus: text("kyc_status").default("pending"), // pending, submitted, verified, rejected
   hasVirtualCard: boolean("has_virtual_card").default(false),
+  twoFactorSecret: text("two_factor_secret"),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  biometricEnabled: boolean("biometric_enabled").default(false),
+  pushNotificationsEnabled: boolean("push_notifications_enabled").default(true),
+  balance: decimal("balance", { precision: 10, scale: 2 }).default("0.00"),
+  otpCode: text("otp_code"),
+  otpExpiry: timestamp("otp_expiry"),
+  paystackCustomerId: text("paystack_customer_id"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const kycDocuments = pgTable("kyc_documents", {
@@ -27,7 +36,10 @@ export const kycDocuments = pgTable("kyc_documents", {
   dateOfBirth: text("date_of_birth"),
   address: text("address"),
   status: text("status").default("pending"),
+  verificationNotes: text("verification_notes"),
+  verifiedAt: timestamp("verified_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const virtualCards = pgTable("virtual_cards", {
@@ -38,7 +50,10 @@ export const virtualCards = pgTable("virtual_cards", {
   cvv: text("cvv").notNull(),
   balance: decimal("balance", { precision: 10, scale: 2 }).default("0.00"),
   status: text("status").default("active"), // active, frozen, expired
+  purchaseAmount: decimal("purchase_amount", { precision: 10, scale: 2 }).default("60.00"),
+  paystackReference: text("paystack_reference"),
   purchaseDate: timestamp("purchase_date").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const transactions = pgTable("transactions", {
@@ -49,11 +64,16 @@ export const transactions = pgTable("transactions", {
   currency: text("currency").notNull(),
   recipientId: varchar("recipient_id").references(() => users.id),
   recipientDetails: jsonb("recipient_details"), // name, phone, email, bank details
-  status: text("status").default("pending"), // pending, completed, failed, cancelled
+  status: text("status").default("pending"), // pending, processing, completed, failed, cancelled
   fee: decimal("fee", { precision: 10, scale: 2 }).default("0.00"),
   exchangeRate: decimal("exchange_rate", { precision: 10, scale: 4 }),
   description: text("description"),
+  reference: text("reference"),
+  paystackReference: text("paystack_reference"),
+  metadata: jsonb("metadata"),
+  completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const paymentRequests = pgTable("payment_requests", {
