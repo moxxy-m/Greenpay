@@ -55,13 +55,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Auto-verify phone and email for smoother onboarding
       await storage.updateUser(user.id, { 
         isPhoneVerified: true, 
-        isEmailVerified: true,
-        kycStatus: "verified" // Allow demo functionality
+        isEmailVerified: true
       });
       
       // Remove password from response
       const { password, ...userResponse } = user;
-      res.json({ user: { ...userResponse, isPhoneVerified: true, isEmailVerified: true, kycStatus: "verified" } });
+      res.json({ user: { ...userResponse, isPhoneVerified: true, isEmailVerified: true } });
     } catch (error) {
       console.error('Signup error:', error);
       res.status(400).json({ message: "Invalid user data" });
@@ -73,6 +72,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { email, password } = loginSchema.parse(req.body);
       
       const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Store session data
+      (req.session as any).userId = user.id;
+      (req.session as any).user = { id: user.id, email: user.email };
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
@@ -91,7 +97,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Remove password from response
       const { password: _, ...userResponse } = user;
-      res.json({ user: userResponse });
+      
+      // Save session before responding
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+        }
+        res.json({ user: userResponse });
+      });
     } catch (error) {
       console.error('Login error:', error);
       res.status(400).json({ message: "Invalid login data" });
@@ -236,6 +249,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Card payment initialization error:', error);
       res.status(500).json({ message: "Error initializing card payment" });
+    }
+  });
+
+  // User profile management endpoints
+  app.put("/api/users/:id/profile", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { fullName, email, phone, country } = req.body;
+
+      const updatedUser = await storage.updateUser(id, {
+        fullName,
+        email,
+        phone,
+        country,
+      });
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const { password, ...userResponse } = updatedUser;
+      res.json({ user: userResponse });
+    } catch (error) {
+      console.error('Profile update error:', error);
+      res.status(400).json({ message: "Failed to update profile" });
+    }
+  });
+
+  app.put("/api/users/:id/settings", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const settings = req.body;
+
+      const updatedUser = await storage.updateUser(id, settings);
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const { password, ...userResponse } = updatedUser;
+      res.json({ user: userResponse });
+    } catch (error) {
+      console.error('Settings update error:', error);
+      res.status(400).json({ message: "Failed to update settings" });
+    }
+  });
+
+  // KYC endpoints
+  app.get("/api/kyc/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      // Return mock KYC data for demo
+      res.json({ kyc: { status: 'pending', documentType: 'national_id' } });
+    } catch (error) {
+      console.error('KYC fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch KYC data" });
+    }
+  });
+
+  app.post("/api/kyc/submit", upload.fields([
+    { name: 'frontImage', maxCount: 1 },
+    { name: 'backImage', maxCount: 1 },
+    { name: 'selfie', maxCount: 1 }
+  ]), async (req, res) => {
+    try {
+      const { userId, documentType, dateOfBirth, address } = req.body;
+      
+      // For demo purposes, auto-approve KYC
+      // For demo, just update user KYC status
+      const kycDocument = {
+        userId,
+        documentType,
+        dateOfBirth: dateOfBirth,
+        address,
+        frontImagePath: 'demo-front.jpg',
+        backImagePath: 'demo-back.jpg',
+        selfiePath: 'demo-selfie.jpg',
+        status: 'verified'
+      };
+
+      // Update user KYC status
+      await storage.updateUser(userId, { kycStatus: "verified" });
+
+      res.json({ kyc: kycDocument });
+    } catch (error) {
+      console.error('KYC submission error:', error);
+      res.status(400).json({ message: "Failed to submit KYC documents" });
     }
   });
 

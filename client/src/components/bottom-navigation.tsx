@@ -49,8 +49,8 @@ export default function BottomNavigation() {
       style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999 }}
       data-testid="bottom-navigation"
     >
-      <div className="bg-card border-t border-border p-4 elevation-3">
-        <div className="flex justify-around">
+      <div className="bg-gradient-to-r from-card via-card/95 to-card backdrop-blur-sm border-t border-border/20 p-2 elevation-3 shadow-lg">
+        <div className="flex justify-around max-w-sm mx-auto">
           {navItems.map((item) => {
             const isActive = location === item.path;
             
@@ -58,14 +58,21 @@ export default function BottomNavigation() {
               <motion.button
                 key={item.id}
                 onClick={() => setLocation(item.path)}
-                whileTap={{ scale: 0.95 }}
-                className={`flex flex-col items-center py-2 px-3 rounded-xl transition-all duration-200 ${
-                  isActive ? 'text-primary' : 'text-muted-foreground'
+                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.05, y: -2 }}
+                className={`flex flex-col items-center py-3 px-4 rounded-2xl transition-all duration-300 min-w-[60px] ${
+                  isActive 
+                    ? 'bg-primary/10 text-primary shadow-lg backdrop-blur-sm border border-primary/20' 
+                    : 'text-muted-foreground hover:text-primary hover:bg-primary/5'
                 }`}
                 data-testid={`nav-${item.id}`}
               >
-                <span className="material-icons text-xl mb-1">{item.icon}</span>
-                <span className="text-xs font-medium">{item.label}</span>
+                <span className={`material-icons mb-1 transition-all duration-200 ${
+                  isActive ? 'text-lg' : 'text-base'
+                }`}>{item.icon}</span>
+                <span className={`text-xs font-semibold transition-all duration-200 ${
+                  isActive ? 'opacity-100' : 'opacity-80'
+                }`}>{item.label}</span>
               </motion.button>
             );
           })}

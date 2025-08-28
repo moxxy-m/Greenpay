@@ -23,6 +23,7 @@ import SupportPage from "@/pages/support";
 import DepositPage from "@/pages/deposit";
 import WithdrawPage from "@/pages/withdraw";
 import ExchangePage from "@/pages/exchange";
+import KycPage from "@/pages/kyc";
 import LoadingScreen from "@/components/loading-screen";
 import BottomNavigation from "@/components/bottom-navigation";
 
@@ -47,6 +48,7 @@ function Router() {
       <Route path="/deposit" component={DepositPage} />
       <Route path="/withdraw" component={WithdrawPage} />
       <Route path="/exchange" component={ExchangePage} />
+      <Route path="/kyc" component={KycPage} />
       <Route component={NotFound} />
     </Switch>
   );

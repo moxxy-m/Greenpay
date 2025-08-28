@@ -1,38 +1,108 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function SettingsPage() {
   const [, setLocation] = useLocation();
-  const [darkMode, setDarkMode] = useState(false);
-  const [biometricLogin, setBiometricLogin] = useState(true);
-  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const { user, logout } = useAuth();
+  const { user, logout, login } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    document.documentElement.classList.toggle('dark');
+  // Profile editing states
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({
+    fullName: user?.fullName || "",
+    email: user?.email || "",
+    phone: user?.phone || "",
+    country: user?.country || "",
+  });
+
+  // Settings states
+  const [settings, setSettings] = useState({
+    defaultCurrency: user?.defaultCurrency || "KES",
+    pushNotificationsEnabled: user?.pushNotificationsEnabled !== false,
+    twoFactorEnabled: user?.twoFactorEnabled || false,
+    biometricEnabled: user?.biometricEnabled || false,
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: typeof profileData) => {
+      const response = await apiRequest("PUT", `/api/users/${user?.id}/profile`, data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      login(data.user); // Update user context
+      setIsEditingProfile(false);
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Unable to update profile",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (data: typeof settings) => {
+      const response = await apiRequest("PUT", `/api/users/${user?.id}/settings`, data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      login(data.user); // Update user context
+      toast({
+        title: "Settings Updated",
+        description: "Your preferences have been saved",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Settings Update Failed",
+        description: error.message || "Unable to update settings",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleProfileUpdate = () => {
+    if (!profileData.fullName || !profileData.email || !profileData.phone || !profileData.country) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateProfileMutation.mutate(profileData);
+  };
+
+  const handleSettingUpdate = (key: string, value: any) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    updateSettingsMutation.mutate(newSettings);
   };
 
   const handleLogout = () => {
+    // Clear all local storage and session data
+    localStorage.clear();
+    sessionStorage.clear();
     logout();
     setLocation("/");
   };
-
-  const ToggleSwitch = ({ checked, onChange, testId }: { checked: boolean; onChange: () => void; testId: string }) => (
-    <label className="relative inline-flex items-center cursor-pointer">
-      <input
-        type="checkbox"
-        className="sr-only peer"
-        checked={checked}
-        onChange={onChange}
-        data-testid={testId}
-      />
-      <div className="w-11 h-6 bg-muted peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-    </label>
-  );
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -62,15 +132,89 @@ export default function SettingsPage() {
             <div className="flex-1">
               <h3 className="font-semibold text-lg">{user?.fullName || 'John Doe'}</h3>
               <p className="text-muted-foreground">{user?.email}</p>
-              <p className="text-xs text-green-500 bg-green-100 px-2 py-1 rounded-full inline-block mt-1">Verified</p>
+              <p className={`text-xs px-2 py-1 rounded-full inline-block mt-1 ${
+                user?.kycStatus === 'verified' 
+                  ? 'text-green-600 bg-green-100' 
+                  : 'text-yellow-600 bg-yellow-100'
+              }`}>
+                {user?.kycStatus === 'verified' ? 'KYC Verified' : 'KYC Pending'}
+              </p>
             </div>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              className="material-icons text-muted-foreground"
-              data-testid="button-edit-profile"
-            >
-              edit
-            </motion.button>
+            <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
+              <DialogTrigger asChild>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  className="material-icons text-muted-foreground hover:text-primary transition-colors p-2 rounded-full hover:bg-muted"
+                  data-testid="button-edit-profile"
+                >
+                  edit
+                </motion.button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Profile</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      value={profileData.fullName}
+                      onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
+                      data-testid="input-full-name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={profileData.email}
+                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                      data-testid="input-email"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={profileData.phone}
+                      onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                      data-testid="input-phone"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="country">Country</Label>
+                    <Select 
+                      value={profileData.country}
+                      onValueChange={(value) => setProfileData({ ...profileData, country: value })}
+                    >
+                      <SelectTrigger data-testid="select-country">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="United States">🇺🇸 United States</SelectItem>
+                        <SelectItem value="United Kingdom">🇬🇧 United Kingdom</SelectItem>
+                        <SelectItem value="Nigeria">🇳🇬 Nigeria</SelectItem>
+                        <SelectItem value="Ghana">🇬🇭 Ghana</SelectItem>
+                        <SelectItem value="Kenya">🇰🇪 Kenya</SelectItem>
+                        <SelectItem value="South Africa">🇿🇦 South Africa</SelectItem>
+                        <SelectItem value="Canada">🇨🇦 Canada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={handleProfileUpdate}
+                    className="w-full"
+                    disabled={updateProfileMutation.isPending}
+                    data-testid="button-save-profile"
+                  >
+                    {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </motion.div>
 
@@ -83,52 +227,73 @@ export default function SettingsPage() {
         >
           <h3 className="font-semibold text-sm text-muted-foreground">ACCOUNT</h3>
           
-          <motion.button
+          {/* Default Currency */}
+          <motion.div
             whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="w-full bg-card p-4 rounded-xl border border-border flex items-center justify-between hover:bg-muted transition-colors elevation-1"
-            data-testid="button-personal-info"
+            className="bg-card p-4 rounded-xl border border-border flex items-center justify-between elevation-1"
           >
             <div className="flex items-center">
-              <span className="material-icons text-primary mr-3">person</span>
-              <div className="text-left">
-                <p className="font-medium">Personal Information</p>
-                <p className="text-sm text-muted-foreground">Update your personal details</p>
+              <span className="material-icons text-primary mr-3">account_balance</span>
+              <div>
+                <p className="font-medium">Default Currency</p>
+                <p className="text-sm text-muted-foreground">Choose your preferred currency</p>
               </div>
             </div>
-            <span className="material-icons text-muted-foreground">chevron_right</span>
-          </motion.button>
+            <Select 
+              value={settings.defaultCurrency}
+              onValueChange={(value) => handleSettingUpdate('defaultCurrency', value)}
+            >
+              <SelectTrigger className="w-32" data-testid="select-default-currency">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">$ USD</SelectItem>
+                <SelectItem value="KES">KSh KES</SelectItem>
+                <SelectItem value="NGN">₦ NGN</SelectItem>
+                <SelectItem value="GHS">₵ GHS</SelectItem>
+                <SelectItem value="ZAR">R ZAR</SelectItem>
+                <SelectItem value="EUR">€ EUR</SelectItem>
+                <SelectItem value="GBP">£ GBP</SelectItem>
+              </SelectContent>
+            </Select>
+          </motion.div>
 
+          {/* KYC Management */}
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
+            onClick={() => setLocation("/kyc")}
             className="w-full bg-card p-4 rounded-xl border border-border flex items-center justify-between hover:bg-muted transition-colors elevation-1"
-            data-testid="button-identity-verification"
+            data-testid="button-kyc"
           >
             <div className="flex items-center">
               <span className="material-icons text-secondary mr-3">verified_user</span>
               <div className="text-left">
                 <p className="font-medium">Identity Verification</p>
-                <p className="text-sm text-muted-foreground">Manage KYC documents</p>
+                <p className="text-sm text-muted-foreground">Manage your KYC documents</p>
               </div>
             </div>
-            <span className="material-icons text-muted-foreground">chevron_right</span>
+            <span className="material-icons">chevron_right</span>
           </motion.button>
 
+          {/* Virtual Card */}
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
+            onClick={() => setLocation("/virtual-card")}
             className="w-full bg-card p-4 rounded-xl border border-border flex items-center justify-between hover:bg-muted transition-colors elevation-1"
-            data-testid="button-payment-methods"
+            data-testid="button-virtual-card-settings"
           >
             <div className="flex items-center">
-              <span className="material-icons text-accent mr-3">payment</span>
+              <span className="material-icons text-primary mr-3">credit_card</span>
               <div className="text-left">
-                <p className="font-medium">Payment Methods</p>
-                <p className="text-sm text-muted-foreground">Manage cards and bank accounts</p>
+                <p className="font-medium">Virtual Card</p>
+                <p className="text-sm text-muted-foreground">
+                  {user?.hasVirtualCard ? 'Manage your card' : 'Purchase virtual card'}
+                </p>
               </div>
             </div>
-            <span className="material-icons text-muted-foreground">chevron_right</span>
+            <span className="material-icons">chevron_right</span>
           </motion.button>
         </motion.div>
 
@@ -141,107 +306,71 @@ export default function SettingsPage() {
         >
           <h3 className="font-semibold text-sm text-muted-foreground">SECURITY</h3>
           
-          <motion.button
+          {/* 2FA */}
+          <motion.div
             whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="w-full bg-card p-4 rounded-xl border border-border flex items-center justify-between hover:bg-muted transition-colors elevation-1"
-            data-testid="button-change-password"
+            className="bg-card p-4 rounded-xl border border-border flex items-center justify-between elevation-1"
           >
             <div className="flex items-center">
-              <span className="material-icons text-primary mr-3">lock</span>
-              <div className="text-left">
-                <p className="font-medium">Change Password</p>
-                <p className="text-sm text-muted-foreground">Update your account password</p>
+              <span className="material-icons text-secondary mr-3">security</span>
+              <div>
+                <p className="font-medium">Two-Factor Authentication</p>
+                <p className="text-sm text-muted-foreground">Add extra security to your account</p>
               </div>
             </div>
-            <span className="material-icons text-muted-foreground">chevron_right</span>
-          </motion.button>
+            <Switch
+              checked={settings.twoFactorEnabled}
+              onCheckedChange={(checked) => handleSettingUpdate('twoFactorEnabled', checked)}
+              data-testid="switch-2fa"
+            />
+          </motion.div>
 
-          <div className="bg-card p-4 rounded-xl border border-border flex items-center justify-between elevation-1">
+          {/* Biometric */}
+          <motion.div
+            whileHover={{ scale: 1.01 }}
+            className="bg-card p-4 rounded-xl border border-border flex items-center justify-between elevation-1"
+          >
             <div className="flex items-center">
-              <span className="material-icons text-secondary mr-3">fingerprint</span>
-              <div className="text-left">
+              <span className="material-icons text-accent mr-3">fingerprint</span>
+              <div>
                 <p className="font-medium">Biometric Login</p>
                 <p className="text-sm text-muted-foreground">Use fingerprint or face ID</p>
               </div>
             </div>
-            <ToggleSwitch 
-              checked={biometricLogin} 
-              onChange={() => setBiometricLogin(!biometricLogin)}
-              testId="toggle-biometric"
+            <Switch
+              checked={settings.biometricEnabled}
+              onCheckedChange={(checked) => handleSettingUpdate('biometricEnabled', checked)}
+              data-testid="switch-biometric"
             />
-          </div>
-
-          <div className="bg-card p-4 rounded-xl border border-border flex items-center justify-between elevation-1">
-            <div className="flex items-center">
-              <span className="material-icons text-accent mr-3">security</span>
-              <div className="text-left">
-                <p className="font-medium">Two-Factor Authentication</p>
-                <p className="text-sm text-muted-foreground">Extra security for your account</p>
-              </div>
-            </div>
-            <ToggleSwitch 
-              checked={twoFactorAuth} 
-              onChange={() => setTwoFactorAuth(!twoFactorAuth)}
-              testId="toggle-2fa"
-            />
-          </div>
+          </motion.div>
         </motion.div>
 
-        {/* App Settings */}
+        {/* Notifications */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
           className="space-y-3"
         >
-          <h3 className="font-semibold text-sm text-muted-foreground">APP PREFERENCES</h3>
+          <h3 className="font-semibold text-sm text-muted-foreground">NOTIFICATIONS</h3>
           
-          <div className="bg-card p-4 rounded-xl border border-border flex items-center justify-between elevation-1">
-            <div className="flex items-center">
-              <span className="material-icons text-primary mr-3">dark_mode</span>
-              <div className="text-left">
-                <p className="font-medium">Dark Mode</p>
-                <p className="text-sm text-muted-foreground">Switch to dark theme</p>
-              </div>
-            </div>
-            <ToggleSwitch 
-              checked={darkMode} 
-              onChange={toggleDarkMode}
-              testId="toggle-dark-mode"
-            />
-          </div>
-
-          <div className="bg-card p-4 rounded-xl border border-border flex items-center justify-between elevation-1">
-            <div className="flex items-center">
-              <span className="material-icons text-secondary mr-3">notifications</span>
-              <div className="text-left">
-                <p className="font-medium">Push Notifications</p>
-                <p className="text-sm text-muted-foreground">Receive transaction alerts</p>
-              </div>
-            </div>
-            <ToggleSwitch 
-              checked={pushNotifications} 
-              onChange={() => setPushNotifications(!pushNotifications)}
-              testId="toggle-notifications"
-            />
-          </div>
-
-          <motion.button
+          <motion.div
             whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="w-full bg-card p-4 rounded-xl border border-border flex items-center justify-between hover:bg-muted transition-colors elevation-1"
-            data-testid="button-language"
+            className="bg-card p-4 rounded-xl border border-border flex items-center justify-between elevation-1"
           >
             <div className="flex items-center">
-              <span className="material-icons text-accent mr-3">language</span>
-              <div className="text-left">
-                <p className="font-medium">Language</p>
-                <p className="text-sm text-muted-foreground">English (US)</p>
+              <span className="material-icons text-primary mr-3">notifications</span>
+              <div>
+                <p className="font-medium">Push Notifications</p>
+                <p className="text-sm text-muted-foreground">Transaction alerts and updates</p>
               </div>
             </div>
-            <span className="material-icons text-muted-foreground">chevron_right</span>
-          </motion.button>
+            <Switch
+              checked={settings.pushNotificationsEnabled}
+              onCheckedChange={(checked) => handleSettingUpdate('pushNotificationsEnabled', checked)}
+              data-testid="switch-notifications"
+            />
+          </motion.div>
         </motion.div>
 
         {/* Support & Legal */}
@@ -258,90 +387,29 @@ export default function SettingsPage() {
             whileTap={{ scale: 0.99 }}
             onClick={() => setLocation("/support")}
             className="w-full bg-card p-4 rounded-xl border border-border flex items-center justify-between hover:bg-muted transition-colors elevation-1"
-            data-testid="button-help-center"
+            data-testid="button-support"
           >
             <div className="flex items-center">
-              <span className="material-icons text-primary mr-3">help</span>
-              <span className="font-medium">Help Center</span>
+              <span className="material-icons text-primary mr-3">support_agent</span>
+              <div className="text-left">
+                <p className="font-medium">Help & Support</p>
+                <p className="text-sm text-muted-foreground">Get help and contact support</p>
+              </div>
             </div>
-            <span className="material-icons text-muted-foreground">chevron_right</span>
+            <span className="material-icons">chevron_right</span>
           </motion.button>
 
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            onClick={() => setLocation("/support")}
-            className="w-full bg-card p-4 rounded-xl border border-border flex items-center justify-between hover:bg-muted transition-colors elevation-1"
-            data-testid="button-contact-support"
-          >
-            <div className="flex items-center">
-              <span className="material-icons text-secondary mr-3">chat</span>
-              <span className="font-medium">Contact Support</span>
-            </div>
-            <span className="material-icons text-muted-foreground">chevron_right</span>
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="w-full bg-card p-4 rounded-xl border border-border flex items-center justify-between hover:bg-muted transition-colors elevation-1"
-            data-testid="button-terms"
-          >
-            <div className="flex items-center">
-              <span className="material-icons text-accent mr-3">description</span>
-              <span className="font-medium">Terms of Service</span>
-            </div>
-            <span className="material-icons text-muted-foreground">chevron_right</span>
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="w-full bg-card p-4 rounded-xl border border-border flex items-center justify-between hover:bg-muted transition-colors elevation-1"
-            data-testid="button-privacy"
-          >
-            <div className="flex items-center">
-              <span className="material-icons text-muted-foreground mr-3">privacy_tip</span>
-              <span className="font-medium">Privacy Policy</span>
-            </div>
-            <span className="material-icons text-muted-foreground">chevron_right</span>
-          </motion.button>
-        </motion.div>
-
-        {/* Danger Zone */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="space-y-3 pt-6"
-        >
-          <h3 className="font-semibold text-sm text-destructive">DANGER ZONE</h3>
-          
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             onClick={handleLogout}
-            className="w-full bg-card p-4 rounded-xl border border-destructive text-destructive flex items-center justify-between hover:bg-destructive/5 transition-colors"
+            className="w-full bg-destructive/10 p-4 rounded-xl border border-destructive/20 flex items-center justify-between hover:bg-destructive/20 transition-colors elevation-1"
             data-testid="button-logout"
           >
             <div className="flex items-center">
-              <span className="material-icons mr-3">logout</span>
-              <span className="font-medium">Sign Out</span>
+              <span className="material-icons text-destructive mr-3">logout</span>
+              <span className="font-medium text-destructive">Sign Out</span>
             </div>
-            <span className="material-icons">chevron_right</span>
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="w-full bg-card p-4 rounded-xl border border-destructive text-destructive flex items-center justify-between hover:bg-destructive/5 transition-colors"
-            data-testid="button-delete-account"
-          >
-            <div className="flex items-center">
-              <span className="material-icons mr-3">delete_forever</span>
-              <span className="font-medium">Delete Account</span>
-            </div>
-            <span className="material-icons">chevron_right</span>
           </motion.button>
         </motion.div>
 
