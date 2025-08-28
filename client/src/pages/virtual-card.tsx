@@ -141,13 +141,6 @@ export default function VirtualCardPage() {
                 <p className="text-sm font-semibold">•••</p>
               </div>
             </div>
-
-            {/* Inactive overlay */}
-            <div className="absolute inset-0 bg-black/20 rounded-2xl flex items-center justify-center">
-              <div className="bg-white/90 px-3 py-1 rounded-full">
-                <span className="text-xs font-semibold text-black">INACTIVE</span>
-              </div>
-            </div>
           </motion.div>
 
           {/* Purchase Information */}
