@@ -215,7 +215,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/virtual-card/initialize-payment", async (req, res) => {
     try {
       const { userId } = req.body;
+      console.log('Card payment request - userId:', userId, 'type:', typeof userId);
+      
+      if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+      
       const user = await storage.getUser(userId);
+      console.log('Card payment - Found user:', !!user, user?.email);
       
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -447,7 +454,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/deposit/initialize-payment", async (req, res) => {
     try {
       const { userId, amount, currency } = req.body;
+      console.log('Deposit payment request - userId:', userId, 'amount:', amount, 'currency:', currency);
+      
+      if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+      
       const user = await storage.getUser(userId);
+      console.log('Deposit payment - Found user:', !!user, user?.email);
       
       if (!user) {
         return res.status(404).json({ message: "User not found" });
