@@ -40,6 +40,16 @@ const transferSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check endpoint - must be defined early to avoid catch-all routes
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ 
+      status: "healthy", 
+      timestamp: new Date().toISOString(),
+      env: process.env.NODE_ENV,
+      uptime: process.uptime()
+    });
+  });
+
   // Create default admin account if none exists
   try {
     const existingAdmin = await storage.getAdminByEmail("admin@greenpay.com");
