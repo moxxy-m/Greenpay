@@ -176,7 +176,7 @@ export default function DashboardPage() {
                 {showBalance ? `$${realTimeBalance.toFixed(2)}` : "••••••"}
               </p>
               <p className="text-green-200 text-xs">
-                ≈ ₦{showBalance ? balanceInNGN : '••••'} • KSh{showBalance ? balanceInKES : '••••'}
+                ≈ ₦{showBalance ? balanceInNGN : '••••'}
               </p>
               <p className="text-green-100 text-xs opacity-75">Live rates</p>
             </div>
