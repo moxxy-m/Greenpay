@@ -391,38 +391,10 @@ export default function ReceiveMoneyPage() {
           <div className="p-4 border-b border-border">
             <h3 className="font-semibold">Recent Requests</h3>
           </div>
-          <div className="divide-y divide-border">
-            <div className="p-4 flex items-center justify-between" data-testid="request-item-1">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mr-3">
-                  <span className="material-icons text-yellow-600 text-sm">schedule</span>
-                </div>
-                <div>
-                  <p className="font-medium">Payment Request</p>
-                  <p className="text-sm text-muted-foreground">To: mary.okafor@email.com</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold">$125.00</p>
-                <p className="text-xs text-yellow-500">Pending</p>
-              </div>
-            </div>
-
-            <div className="p-4 flex items-center justify-between" data-testid="request-item-2">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                  <span className="material-icons text-green-600 text-sm">check</span>
-                </div>
-                <div>
-                  <p className="font-medium">Payment Received</p>
-                  <p className="text-sm text-muted-foreground">From: james.kone@email.com</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-primary">$85.50</p>
-                <p className="text-xs text-green-500">Completed</p>
-              </div>
-            </div>
+          <div className="p-8 text-center">
+            <span className="material-icons text-muted-foreground mb-3 block text-3xl">inbox</span>
+            <p className="text-muted-foreground">No payment requests yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Your payment requests will appear here</p>
           </div>
         </motion.div>
       </div>
