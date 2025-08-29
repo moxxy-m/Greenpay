@@ -1413,6 +1413,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin user balance management
+  app.put("/api/admin/users/:id/balance", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const { amount, type } = req.body;
+      const currentBalance = parseFloat(user.balance || "0");
+      const updateAmount = parseFloat(amount);
+      
+      let newBalance: number;
+      switch (type) {
+        case "add":
+          newBalance = currentBalance + updateAmount;
+          break;
+        case "subtract":
+          newBalance = Math.max(0, currentBalance - updateAmount);
+          break;
+        case "set":
+          newBalance = updateAmount;
+          break;
+        default:
+          return res.status(400).json({ error: "Invalid update type" });
+      }
+      
+      const updatedUser = await storage.updateUser(req.params.id, { 
+        balance: newBalance.toFixed(2) 
+      });
+      res.json({ user: updatedUser, newBalance });
+    } catch (error) {
+      console.error('Admin balance update error:', error);
+      res.status(500).json({ error: "Failed to update user balance" });
+    }
+  });
+
+  // Admin virtual card management
+  app.put("/api/admin/users/:id/card/:action", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const { action } = req.params;
+      let updateData: any = {};
+      
+      switch (action) {
+        case "issue":
+          updateData = { hasVirtualCard: true, cardStatus: "active" };
+          break;
+        case "activate":
+          if (!user.hasVirtualCard) {
+            return res.status(400).json({ error: "User has no virtual card" });
+          }
+          updateData = { cardStatus: "active" };
+          break;
+        case "deactivate":
+          if (!user.hasVirtualCard) {
+            return res.status(400).json({ error: "User has no virtual card" });
+          }
+          updateData = { cardStatus: "blocked" };
+          break;
+        default:
+          return res.status(400).json({ error: "Invalid action" });
+      }
+      
+      const updatedUser = await storage.updateUser(req.params.id, updateData);
+      res.json({ user: updatedUser });
+    } catch (error) {
+      console.error('Admin card management error:', error);
+      res.status(500).json({ error: "Failed to update card status" });
+    }
+  });
+
   // Admin KYC Management
   app.get("/api/admin/kyc", async (req, res) => {
     try {

@@ -122,9 +122,9 @@ export default function VirtualCardManagement() {
     );
   }
 
-  const activeCards = cardsData?.virtualCards.filter(c => c.isActive).length || 0;
-  const blockedCards = cardsData?.virtualCards.filter(c => !c.isActive).length || 0;
-  const totalBalance = cardsData?.virtualCards.reduce((sum, c) => sum + parseFloat(c.balance), 0) || 0;
+  const activeCards = cardsData?.virtualCards?.filter(c => c.isActive).length || 0;
+  const blockedCards = cardsData?.virtualCards?.filter(c => !c.isActive).length || 0;
+  const totalBalance = cardsData?.virtualCards?.reduce((sum, c) => sum + parseFloat(c.balance), 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -204,7 +204,7 @@ export default function VirtualCardManagement() {
       {/* Virtual Cards Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Virtual Cards ({cardsData?.virtualCards.length || 0})</CardTitle>
+          <CardTitle>Virtual Cards ({cardsData?.virtualCards?.length || 0})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -225,7 +225,7 @@ export default function VirtualCardManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cardsData?.virtualCards.map((card) => (
+                {cardsData?.virtualCards?.map((card) => (
                   <TableRow key={card.id}>
                     <TableCell>
                       <div>

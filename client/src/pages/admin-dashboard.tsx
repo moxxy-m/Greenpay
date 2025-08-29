@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { 
   Users, 
   CreditCard, 
@@ -16,7 +17,11 @@ import {
   UserCheck,
   UserX,
   Clock,
-  CheckCircle
+  CheckCircle,
+  LayoutDashboard,
+  BarChart3,
+  Menu,
+  X
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
@@ -55,6 +60,8 @@ interface DashboardData {
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   const [adminData, setAdminData] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const admin = localStorage.getItem("adminAuth");
