@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import ConnectPgSimple from "connect-pg-simple";
+import { Pool } from "pg";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -19,8 +21,31 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Configure PostgreSQL session store for production
+const pgSession = ConnectPgSimple(session);
+
+// Create PostgreSQL connection pool
+let sessionStore;
+if (process.env.DATABASE_URL) {
+  const pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  });
+  
+  sessionStore = new pgSession({
+    pool: pgPool,
+    tableName: 'user_sessions',
+    createTableIfMissing: true
+  });
+  
+  console.log('Using PostgreSQL session store for production');
+} else {
+  console.warn('DATABASE_URL not found - falling back to MemoryStore (not recommended for production)');
+}
+
 // Session configuration for better security
 app.use(session({
+  store: sessionStore,
   secret: process.env.SESSION_SECRET || 'greenpay-secret-key-change-in-production-' + Math.random(),
   resave: false,
   saveUninitialized: false,
