@@ -368,13 +368,13 @@ export default function KYCPage() {
               </div>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+            <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
               <div className="flex items-start">
-                <span className="material-icons text-amber-600 mr-2 mt-1">info</span>
+                <span className="material-icons text-blue-600 mr-2 mt-1">security</span>
                 <div>
-                  <h3 className="font-medium text-amber-800">Verification Process</h3>
-                  <p className="text-sm text-amber-700 mt-1">
-                    Your documents will be reviewed instantly. For demo purposes, verification is automatically approved.
+                  <h3 className="font-medium text-blue-800">Verification Process</h3>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Your documents will be securely reviewed by our verification team. You'll receive a notification once the review is complete.
                   </p>
                 </div>
               </div>
