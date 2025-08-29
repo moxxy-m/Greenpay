@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,7 +25,12 @@ export default function DepositPage() {
   const [, setLocation] = useLocation();
   const [selectedMethod, setSelectedMethod] = useState<string>("");
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+
+  // Refresh user data when deposit page loads to get latest balance
+  useEffect(() => {
+    refreshUser();
+  }, []);
 
   const form = useForm<DepositForm>({
     resolver: zodResolver(depositSchema),

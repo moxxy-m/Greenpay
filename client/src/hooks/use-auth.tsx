@@ -5,6 +5,7 @@ interface AuthContextType {
   user: User | null;
   login: (user: User) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -31,10 +32,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("greenpay_user");
   };
 
+  const refreshUser = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const response = await fetch(`/api/users/${user.id}`);
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData.user);
+        localStorage.setItem("greenpay_user", JSON.stringify(userData.user));
+      }
+    } catch (error) {
+      console.error("Failed to refresh user data:", error);
+    }
+  };
+
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, login, logout, refreshUser, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

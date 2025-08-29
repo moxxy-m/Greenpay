@@ -9,7 +9,12 @@ import { apiRequest } from "@/lib/queryClient";
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const [showBalance, setShowBalance] = useState(true);
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
+
+  // Refresh user data when dashboard loads to get latest balance
+  useEffect(() => {
+    refreshUser();
+  }, []);
 
   // Get real user data
   const { data: transactionData } = useQuery({
