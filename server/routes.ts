@@ -343,21 +343,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId, documentType, dateOfBirth, address } = req.body;
       
-      // For demo purposes, auto-approve KYC
-      // For demo, just update user KYC status
-      const kycDocument = {
+      // Create real KYC document with uploaded files
+      const files = req.files as any;
+      
+      const kycDocument = await storage.createKycDocument({
         userId,
         documentType,
-        dateOfBirth: dateOfBirth,
+        dateOfBirth: new Date(dateOfBirth),
         address,
-        frontImagePath: 'demo-front.jpg',
-        backImagePath: 'demo-back.jpg',
-        selfiePath: 'demo-selfie.jpg',
-        status: 'verified'
-      };
+        frontImagePath: files?.frontImage?.[0]?.filename || null,
+        backImagePath: files?.backImage?.[0]?.filename || null,
+        selfiePath: files?.selfie?.[0]?.filename || null,
+      });
 
-      // Update user KYC status
-      await storage.updateUser(userId, { kycStatus: "verified" });
+      // Update user KYC status to pending (admin will verify)
+      await storage.updateUser(userId, { kycStatus: "pending" });
 
       res.json({ kyc: kycDocument });
     } catch (error) {
@@ -1508,7 +1508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedKyc = await storage.updateKycDocument(id, {
         status,
         verificationNotes,
-        verifiedAt: status === "verified" ? new Date().toISOString() : null
+        verifiedAt: status === "verified" ? new Date() : null
       });
 
       if (!updatedKyc) {

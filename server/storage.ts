@@ -724,6 +724,17 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return setting || undefined;
   }
+
+  async getSystemSettings(): Promise<SystemSetting[]> {
+    return await db
+      .select()
+      .from(systemSettings)
+      .orderBy(systemSettings.category, systemSettings.key);
+  }
+
+  async createSystemSetting(setting: InsertSystemSetting): Promise<SystemSetting> {
+    return await this.setSystemSetting(setting);
+  }
 }
 
 // Use DatabaseStorage instead of MemStorage
