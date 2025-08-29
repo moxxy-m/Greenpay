@@ -423,7 +423,7 @@ function UserManagementDialog({
             </div>
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-gray-500" />
-              <span className="text-sm">Joined {format(new Date(user.createdAt), "MMM dd, yyyy")}</span>
+              <span className="text-sm">Joined {user.createdAt ? format(new Date(user.createdAt), "MMM dd, yyyy") : 'N/A'}</span>
             </div>
           </div>
         </div>

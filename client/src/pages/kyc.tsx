@@ -43,11 +43,11 @@ export default function KYCPage() {
       return response.json();
     },
     onSuccess: (data) => {
-      login({ ...user, kycStatus: "verified" });
+      login({ ...user, kycStatus: "pending" });
       queryClient.invalidateQueries({ queryKey: ["/api/kyc", user?.id] });
       toast({
         title: "KYC Submitted Successfully!",
-        description: "Your documents have been verified and approved",
+        description: "Your documents have been submitted for review. You will be notified once verified.",
       });
       setLocation("/dashboard");
     },

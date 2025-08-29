@@ -200,13 +200,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const kyc = await storage.createKycDocument(kycData);
       
-      // Update user KYC status to verified for demo
-      await storage.updateUser(userId, { kycStatus: "verified" });
+      // Update user KYC status to pending for admin review
+      await storage.updateUser(userId, { kycStatus: "pending" });
       
       // Send notification
       await notificationService.sendNotification({
-        title: "KYC Documents Verified",
-        body: "Your verification is complete and approved",
+        title: "KYC Documents Submitted",
+        body: "Your documents have been submitted for review. You will be notified once verified.",
         userId,
         type: "general"
       });

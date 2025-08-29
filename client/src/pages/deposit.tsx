@@ -126,7 +126,9 @@ export default function DepositPage() {
         >
           <div className="text-center">
             <p className="text-sm text-muted-foreground">Current Balance</p>
-            <p className="text-2xl font-bold text-primary" data-testid="text-current-balance">$2,847.65</p>
+            <p className="text-2xl font-bold text-primary" data-testid="text-current-balance">
+              ${user?.balance ? parseFloat(user.balance).toFixed(2) : '0.00'}
+            </p>
           </div>
         </motion.div>
 

@@ -69,6 +69,9 @@ export default function VirtualCardManagement() {
     },
   });
 
+  // Handle the case where cardsData might be undefined or have different structure
+  const cards = cardsData?.cards || cardsData?.virtualCards || [];
+
   const updateCardMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<VirtualCard> }) => {
       const response = await apiRequest("PUT", `/api/admin/virtual-cards/${id}`, updates);
@@ -122,8 +125,8 @@ export default function VirtualCardManagement() {
     );
   }
 
-  const activeCards = cardsData?.virtualCards?.filter(c => c.isActive).length || 0;
-  const blockedCards = cardsData?.virtualCards?.filter(c => !c.isActive).length || 0;
+  const activeCards = cards.filter(c => c.isActive).length || 0;
+  const blockedCards = cards.filter(c => !c.isActive).length || 0;
   const totalBalance = cardsData?.virtualCards?.reduce((sum, c) => sum + parseFloat(c.balance), 0) || 0;
 
   return (
@@ -161,7 +164,7 @@ export default function VirtualCardManagement() {
               <CreditCard className="w-4 h-4 text-blue-600" />
               <div>
                 <p className="text-sm text-gray-500">Total Cards</p>
-                <p className="text-lg font-bold">{cardsData?.virtualCards.length || 0}</p>
+                <p className="text-lg font-bold">{cards.length || 0}</p>
               </div>
             </div>
           </CardContent>
@@ -204,7 +207,7 @@ export default function VirtualCardManagement() {
       {/* Virtual Cards Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Virtual Cards ({cardsData?.virtualCards?.length || 0})</CardTitle>
+          <CardTitle>Virtual Cards ({cards.length || 0})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -225,7 +228,7 @@ export default function VirtualCardManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cardsData?.virtualCards?.map((card) => (
+                {cards.map((card) => (
                   <TableRow key={card.id}>
                     <TableCell>
                       <div>
