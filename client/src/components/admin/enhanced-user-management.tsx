@@ -152,8 +152,10 @@ export default function EnhancedUserManagement() {
       const response = await apiRequest("PUT", `/api/admin/users/${userId}/card/${action}`);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/virtual-card"] });
       toast({
         title: "Card Updated",
         description: "Virtual card status has been updated successfully",

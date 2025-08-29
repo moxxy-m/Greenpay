@@ -260,7 +260,7 @@ export default function VirtualCardPage() {
             
             <div className="mb-6">
               <p className="text-2xl font-mono tracking-wider" data-testid="text-card-number">
-                {maskCardNumber(card.cardNumber || "4567123456784567")}
+                {maskCardNumber(card?.cardNumber || "4567123456784567")}
               </p>
             </div>
             
@@ -271,11 +271,11 @@ export default function VirtualCardPage() {
               </div>
               <div>
                 <p className="text-green-200 text-xs">EXPIRES</p>
-                <p className="text-sm font-semibold">{card.expiryDate || "12/27"}</p>
+                <p className="text-sm font-semibold">{card?.expiryDate || "12/27"}</p>
               </div>
               <div>
                 <p className="text-green-200 text-xs">CVV</p>
-                <p className="text-sm font-semibold">{showCardDetails ? (card.cvv || "123") : "•••"}</p>
+                <p className="text-sm font-semibold">{showCardDetails ? (card?.cvv || "123") : "•••"}</p>
               </div>
             </div>
           </div>
