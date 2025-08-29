@@ -356,6 +356,8 @@ export default function EnhancedUserManagement() {
                                 setBalanceUpdate={setBalanceUpdate}
                                 updateType={updateType}
                                 setUpdateType={setUpdateType}
+                                transactionDetails={transactionDetails}
+                                setTransactionDetails={setTransactionDetails}
                                 isLoading={updateBalanceMutation.isPending || updateCardStatusMutation.isPending}
                               />
                             )}
@@ -399,6 +401,8 @@ function UserManagementDialog({
   setBalanceUpdate,
   updateType,
   setUpdateType,
+  transactionDetails,
+  setTransactionDetails,
   isLoading 
 }: {
   user: User;
@@ -408,6 +412,8 @@ function UserManagementDialog({
   setBalanceUpdate: (value: string) => void;
   updateType: "add" | "subtract" | "set";
   setUpdateType: (type: "add" | "subtract" | "set") => void;
+  transactionDetails: string;
+  setTransactionDetails: (value: string) => void;
   isLoading: boolean;
 }) {
   return (
