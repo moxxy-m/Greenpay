@@ -258,9 +258,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate unique reference
       const reference = paystackService.generateReference();
       
+      // Validate user email
+      if (!user.email || !user.email.includes('@') || !user.email.includes('.')) {
+        return res.status(400).json({ message: "Invalid user email. Please update your profile with a valid email address." });
+      }
+
       // Initialize payment with Paystack
       const paymentData = await paystackService.initializePayment(
-        user.email.includes('@') && user.email.includes('.') ? user.email : 'test@example.com',
+        user.email,
         60, // $60 for virtual card
         reference
       );
@@ -486,10 +491,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate unique reference
       const reference = paystackService.generateReference();
       
+      // Validate user email
+      if (!user.email || !user.email.includes('@') || !user.email.includes('.')) {
+        return res.status(400).json({ message: "Invalid user email. Please update your profile with a valid email address." });
+      }
+
+      // Validate amount
+      const depositAmount = parseFloat(amount);
+      if (isNaN(depositAmount) || depositAmount <= 0) {
+        return res.status(400).json({ message: "Invalid deposit amount" });
+      }
+
       // Initialize payment with Paystack
       const paymentData = await paystackService.initializePayment(
-        user.email.includes('@') && user.email.includes('.') ? user.email : 'test@example.com',
-        parseFloat(amount),
+        user.email,
+        depositAmount,
         reference
       );
       
@@ -521,7 +537,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create transaction record
       const transaction = await storage.createTransaction({
-        id: `deposit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         userId,
         type: 'deposit',
         amount: amount.toString(),
@@ -529,14 +544,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'completed',
         description: `Deposit via Paystack - ${reference}`,
         fee: '0.00',
-        reference,
-        recipientName: null,
-        recipientAccount: null,
-        recipientBank: null,
-        exchangeRate: null,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        paystackReference: reference
       });
+
+      // Get user again to ensure balance is current
+      const updatedUser = await storage.getUser(userId);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Update user balance
+      const currentBalance = parseFloat(updatedUser.balance || "0");
+      const newBalance = currentBalance + depositAmount;
+      await storage.updateUser(userId, { balance: newBalance.toFixed(2) });
       
       res.json({ 
         message: "Deposit successful",
