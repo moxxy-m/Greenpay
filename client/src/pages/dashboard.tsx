@@ -53,7 +53,7 @@ export default function DashboardPage() {
   // Check user status
   const isKYCVerified = user?.kycStatus === 'verified';
   const hasVirtualCard = user?.hasVirtualCard || !!(cardData as any)?.card;
-  const cardStatus = user?.cardStatus || ((cardData as any)?.card ? 'active' : 'inactive');
+  const cardStatus = hasVirtualCard ? (user?.cardStatus || 'active') : 'inactive';
 
   const toggleDarkMode = () => {
     document.documentElement.classList.toggle('dark');
