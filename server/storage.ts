@@ -74,9 +74,26 @@ export interface IStorage {
   // Admin operations
   getAdminByEmail(email: string): Promise<Admin | undefined>;
   createAdmin(admin: InsertAdmin): Promise<Admin>;
-  updateAdmin(id: string, updates: Partial<Admin>): Promise<Admin | undefined>;
+  getAllUsers(filters?: { status?: string; search?: string; page?: number; limit?: number }): Promise<{ users: User[]; total: number; page: number; totalPages: number }>;
+  getAllKycDocuments(): Promise<KycDocument[]>;
+  getAllTransactions(filters?: { status?: string; page?: number; limit?: number }): Promise<{ transactions: Transaction[]; total: number; page: number; totalPages: number }>;
+  getAllVirtualCards(): Promise<VirtualCard[]>;
+  getDashboardMetrics(): Promise<{
+    totalUsers: number;
+    activeUsers: number;
+    pendingKyc: number;
+    totalTransactions: number;
+    totalVolume: string;
+    monthlyGrowth: number;
+  }>;
   createAdminLog(log: InsertAdminLog): Promise<AdminLog>;
   getAdminLogs(): Promise<AdminLog[]>;
+  
+  // System Settings operations
+  getSystemSettings(): Promise<SystemSetting[]>;
+  updateSystemSetting(key: string, value: string): Promise<SystemSetting | undefined>;
+  createSystemSetting(setting: InsertSystemSetting): Promise<SystemSetting>;
+  updateAdmin(id: string, updates: Partial<Admin>): Promise<Admin | undefined>;
   
   // Admin data operations
   getAllUsers(): Promise<User[]>;

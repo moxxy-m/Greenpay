@@ -24,6 +24,9 @@ import { useLocation } from "wouter";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import UserManagement from "@/components/admin/user-management";
 import KycManagement from "@/components/admin/kyc-management";
+import TransactionManagement from "@/components/admin/transaction-management";
+import VirtualCardManagement from "@/components/admin/virtual-card-management";
+import AdminSettings from "@/components/admin/admin-settings";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -323,31 +326,11 @@ function AdminKycTab() {
 }
 
 function AdminTransactionsTab() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Transaction Management</CardTitle>
-        <CardDescription>Monitor and manage all platform transactions</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-gray-500">Transaction management interface coming soon...</p>
-      </CardContent>
-    </Card>
-  );
+  return <TransactionManagement />;
 }
 
 function AdminCardsTab() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Virtual Card Management</CardTitle>
-        <CardDescription>Manage virtual cards and approvals</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-gray-500">Virtual card management interface coming soon...</p>
-      </CardContent>
-    </Card>
-  );
+  return <VirtualCardManagement />;
 }
 
 function AdminLogsTab() {
@@ -365,15 +348,5 @@ function AdminLogsTab() {
 }
 
 function AdminSettingsTab() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>System Settings</CardTitle>
-        <CardDescription>Configure platform settings and fees</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-gray-500">Settings interface coming soon...</p>
-      </CardContent>
-    </Card>
-  );
+  return <AdminSettings />;
 }

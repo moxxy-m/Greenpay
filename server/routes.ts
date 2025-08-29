@@ -1413,6 +1413,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin KYC Management
+  app.get("/api/admin/kyc", async (req, res) => {
+    try {
+      const kycDocuments = await storage.getAllKycDocuments();
+      res.json({ kycDocuments });
+    } catch (error) {
+      console.error('KYC fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch KYC documents" });
+    }
+  });
+
+  app.put("/api/admin/kyc/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, verificationNotes } = req.body;
+      
+      const updatedKyc = await storage.updateKycDocument(id, {
+        status,
+        verificationNotes,
+        verifiedAt: status === "verified" ? new Date().toISOString() : null
+      });
+
+      if (!updatedKyc) {
+        return res.status(404).json({ message: "KYC document not found" });
+      }
+
+      res.json({ kycDocument: updatedKyc });
+    } catch (error) {
+      console.error('KYC update error:', error);
+      res.status(500).json({ message: "Failed to update KYC document" });
+    }
+  });
+
+  // Admin Transaction Management  
+  app.get("/api/admin/transactions", async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const status = req.query.status as string;
+      
+      const result = await storage.getAllTransactions({ status, page, limit });
+      res.json(result);
+    } catch (error) {
+      console.error('Transactions fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  app.put("/api/admin/transactions/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const updatedTransaction = await storage.updateTransaction(id, updates);
+      
+      if (!updatedTransaction) {
+        return res.status(404).json({ message: "Transaction not found" });
+      }
+
+      res.json({ transaction: updatedTransaction });
+    } catch (error) {
+      console.error('Transaction update error:', error);
+      res.status(500).json({ message: "Failed to update transaction" });
+    }
+  });
+
+  // Admin Virtual Cards Management
+  app.get("/api/admin/virtual-cards", async (req, res) => {
+    try {
+      const virtualCards = await storage.getAllVirtualCards();
+      res.json({ virtualCards });
+    } catch (error) {
+      console.error('Virtual cards fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch virtual cards" });
+    }
+  });
+
+  app.put("/api/admin/virtual-cards/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const updatedCard = await storage.updateVirtualCard(id, updates);
+      
+      if (!updatedCard) {
+        return res.status(404).json({ message: "Virtual card not found" });
+      }
+
+      res.json({ virtualCard: updatedCard });
+    } catch (error) {
+      console.error('Virtual card update error:', error);
+      res.status(500).json({ message: "Failed to update virtual card" });
+    }
+  });
+
+  // System Settings Management
+  app.get("/api/admin/settings", async (req, res) => {
+    try {
+      const settings = await storage.getSystemSettings();
+      res.json({ settings });
+    } catch (error) {
+      console.error('Settings fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch system settings" });
+    }
+  });
+
+  app.put("/api/admin/settings/:key", async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+      
+      const updatedSetting = await storage.updateSystemSetting(key, value);
+      
+      if (!updatedSetting) {
+        return res.status(404).json({ message: "Setting not found" });
+      }
+
+      res.json({ setting: updatedSetting });
+    } catch (error) {
+      console.error('Setting update error:', error);
+      res.status(500).json({ message: "Failed to update setting" });
+    }
+  });
+
+  app.post("/api/admin/settings", async (req, res) => {
+    try {
+      const settingData = req.body;
+      const newSetting = await storage.createSystemSetting(settingData);
+      res.json({ setting: newSetting });
+    } catch (error) {
+      console.error('Setting creation error:', error);
+      res.status(500).json({ message: "Failed to create setting" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

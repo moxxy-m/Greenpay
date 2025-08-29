@@ -77,7 +77,7 @@ export default function UserManagement() {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: "20",
-        ...(status && { status }),
+        ...(status && status !== "all" && { status }),
         ...(search && { search }),
       });
       const response = await apiRequest("GET", `/api/admin/users?${params}`);
@@ -189,7 +189,7 @@ export default function UserManagement() {
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Users</SelectItem>
+                <SelectItem value="all">All Users</SelectItem>
                 <SelectItem value="active">Active Users</SelectItem>
                 <SelectItem value="pending">Pending KYC</SelectItem>
                 <SelectItem value="verified">Verified Users</SelectItem>

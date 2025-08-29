@@ -50,6 +50,8 @@ function Router() {
       <Route path="/exchange" component={ExchangePage} />
       <Route path="/kyc" component={KycPage} />
       <Route path="/payment-callback" component={PaymentCallbackPage} />
+      <Route path="/admin-login" component={AdminLogin} />
+      <Route path="/admin-dashboard" component={AdminDashboard} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route component={NotFound} />
