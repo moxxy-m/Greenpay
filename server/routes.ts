@@ -1510,6 +1510,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       switch (action) {
         case "issue":
           updateData = { hasVirtualCard: true, cardStatus: "active" };
+          
+          // Create virtual card record when issuing
+          const cardData = {
+            userId: req.params.id,
+            cardNumber: `4567${Math.random().toString().slice(2, 14)}`,
+            expiryMonth: String(new Date().getMonth() + 1).padStart(2, '0'),
+            expiryYear: String(new Date().getFullYear() + 5).slice(-2),
+            cvv: Math.floor(Math.random() * 900 + 100).toString(),
+            cardholderName: user.fullName || user.username,
+            status: "active",
+            balance: "0.00",
+            cardType: "virtual",
+            provider: "Mastercard",
+            currency: user.defaultCurrency || "USD",
+            pin: Math.floor(Math.random() * 9000 + 1000).toString()
+          };
+          
+          try {
+            await storage.createVirtualCard(cardData);
+          } catch (error) {
+            console.error('Error creating virtual card:', error);
+            return res.status(500).json({ error: "Failed to create virtual card" });
+          }
           break;
         case "activate":
           if (!user.hasVirtualCard) {

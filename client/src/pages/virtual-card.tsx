@@ -20,7 +20,7 @@ export default function VirtualCardPage() {
   });
 
   const card = (cardData as any)?.card;
-  const hasCard = !!card;
+  const hasCard = user?.hasVirtualCard || !!card;
 
   const purchaseCardMutation = useMutation({
     mutationFn: async () => {
