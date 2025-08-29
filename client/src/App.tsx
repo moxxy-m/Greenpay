@@ -28,6 +28,8 @@ import LoadingScreen from "@/components/loading-screen";
 import BottomNavigation from "@/components/bottom-navigation";
 import { PWAInstallPrompt } from "@/components/pwa-install";
 import PaymentCallbackPage from "@/pages/payment-callback";
+import PaymentSuccessPage from "@/pages/payment-success";
+import PaymentFailedPage from "@/pages/payment-failed";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard-new";
 
@@ -51,6 +53,8 @@ function Router() {
       <Route path="/exchange" component={ExchangePage} />
       <Route path="/kyc" component={KycPage} />
       <Route path="/payment-callback" component={PaymentCallbackPage} />
+      <Route path="/payment-success" component={PaymentSuccessPage} />
+      <Route path="/payment-failed" component={PaymentFailedPage} />
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/admin-dashboard" component={AdminDashboard} />
       <Route path="/admin/login" component={AdminLogin} />

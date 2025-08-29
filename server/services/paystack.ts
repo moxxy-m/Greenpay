@@ -19,7 +19,7 @@ export class PaystackService {
     this.secretKey = secretKey;
   }
 
-  async initializePayment(email: string, amount: number, reference: string, currency: string = 'KES', phoneNumber?: string): Promise<PaystackResponse> {
+  async initializePayment(email: string, amount: number, reference: string, currency: string = 'KES', phoneNumber?: string, callbackUrl?: string): Promise<PaystackResponse> {
     try {
       const url = `${this.baseUrl}/transaction/initialize`;
       
@@ -30,6 +30,11 @@ export class PaystackService {
         currency,
         channels: ['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer']
       };
+
+      // Add callback URLs for success and failure tracking
+      if (callbackUrl) {
+        payload.callback_url = callbackUrl;
+      }
 
       // Add M-Pesa mobile money configuration for KES
       if (currency === 'KES' && phoneNumber) {

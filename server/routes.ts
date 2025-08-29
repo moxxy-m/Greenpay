@@ -260,10 +260,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "User already has a virtual card" });
       }
 
-      // Allow card purchase for demo - in production, KYC would be required
-      // if (user.kycStatus !== "verified") {
-      //   return res.status(400).json({ message: "Please complete KYC verification first" });
-      // }
+      // Allow card purchase for production - KYC verification can be added later
+      // Note: In production environment, additional KYC verification may be required
 
       // Generate unique reference
       const reference = paystackService.generateReference();
@@ -285,12 +283,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Converting $${usdAmount} USD to ${kesAmount} KES for card purchase`);
 
       // Initialize payment with Paystack in KES currency
+      const callbackUrl = `${req.protocol}://${req.get('host')}/api/payment-callback?reference=${reference}&type=virtual-card`;
+      
       const paymentData = await paystackService.initializePayment(
         user.email,
         kesAmount, // Converted amount in KES
         reference,
         'KES', // Use KES currency
-        user.phone // Use registered phone number for M-Pesa
+        user.phone, // Use registered phone number for M-Pesa
+        callbackUrl // Callback URL for tracking
       );
       
       if (!paymentData.status) {
@@ -509,6 +510,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Double-check payment is actually successful before creating card
+      if (paymentData.status !== 'success' || !paymentData.amount) {
+        console.error('Payment verification failed - status:', paymentData.status, 'amount:', paymentData.amount);
+        return res.status(400).json({ 
+          message: "Payment verification failed - payment not successful", 
+          success: false
+        });
+      }
+
       // Payment was successful - create virtual card
       console.log('Payment successful, creating virtual card');
       const card = await storage.createVirtualCard({ 
@@ -545,6 +555,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Error verifying card payment",
         success: false
       });
+    }
+  });
+
+  // Payment callback handler for Paystack
+  app.get("/api/payment-callback", async (req, res) => {
+    try {
+      const { reference, trxref, type } = req.query;
+      const actualReference = reference || trxref;
+      
+      console.log('Payment callback received:', { reference: actualReference, type });
+
+      if (!actualReference) {
+        return res.status(400).json({ message: "Payment reference is required" });
+      }
+
+      // Verify the payment with Paystack
+      const verificationResult = await paystackService.verifyPayment(actualReference as string);
+      
+      if (!verificationResult.status) {
+        console.error('Callback payment verification failed:', verificationResult.message);
+        return res.redirect(`/payment-failed?reference=${actualReference}&error=${encodeURIComponent(verificationResult.message)}`);
+      }
+
+      const paymentData = verificationResult.data;
+      
+      if (paymentData.status === 'success') {
+        // Payment successful - redirect to success page
+        if (type === 'virtual-card') {
+          return res.redirect(`/payment-success?reference=${actualReference}&type=virtual-card`);
+        } else {
+          return res.redirect(`/payment-success?reference=${actualReference}&type=deposit`);
+        }
+      } else {
+        // Payment failed - redirect to failure page
+        return res.redirect(`/payment-failed?reference=${actualReference}&status=${paymentData.status}`);
+      }
+    } catch (error) {
+      console.error('Payment callback error:', error);
+      return res.redirect(`/payment-failed?error=${encodeURIComponent('Payment verification failed')}`);
+    }
+  });
+
+  // Paystack webhook handler for real-time payment updates
+  app.post("/api/webhook/paystack", async (req, res) => {
+    try {
+      const event = req.body;
+      console.log('Paystack webhook received:', event.event, event.data?.reference);
+
+      // Verify webhook authenticity (in production, verify signature)
+      if (event.event === 'charge.success') {
+        const { reference, status, amount, currency } = event.data;
+        
+        console.log('Webhook payment success:', { reference, status, amount, currency });
+        
+        // Handle successful payment here if needed
+        // This is a backup to the callback URL method
+        
+      } else if (event.event === 'charge.failed') {
+        const { reference, status } = event.data;
+        console.log('Webhook payment failed:', { reference, status });
+      }
+
+      // Always respond with 200 to acknowledge webhook
+      res.status(200).json({ received: true });
+    } catch (error) {
+      console.error('Webhook error:', error);
+      res.status(500).json({ error: 'Webhook processing failed' });
     }
   });
 
@@ -585,12 +662,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Initialize payment with Paystack in KES currency
+      const callbackUrl = `${req.protocol}://${req.get('host')}/api/payment-callback?reference=${reference}&type=deposit`;
+      
       const paymentData = await paystackService.initializePayment(
         user.email,
         depositAmount,
         reference,
         'KES', // Use KES currency
-        user.phone // Use registered phone number for M-Pesa
+        user.phone, // Use registered phone number for M-Pesa
+        callbackUrl // Callback URL for tracking
       );
       
       if (!paymentData.status) {
