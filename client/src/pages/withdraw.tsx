@@ -161,7 +161,7 @@ export default function WithdrawPage() {
         >
           <div className="text-center">
             <p className="text-sm text-muted-foreground">Available for Withdrawal</p>
-            <p className="text-2xl font-bold text-primary" data-testid="text-available-balance">$2,847.65</p>
+            <p className="text-2xl font-bold text-primary" data-testid="text-available-balance">${user?.balance || '0.00'}</p>
             <p className="text-xs text-muted-foreground mt-1">Virtual Card Balance</p>
           </div>
         </motion.div>

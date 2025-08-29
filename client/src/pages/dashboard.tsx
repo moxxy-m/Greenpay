@@ -192,13 +192,13 @@ export default function DashboardPage() {
             </motion.button>
           </div>
           
-          <div className="flex space-x-3">
+          <div className="flex space-x-2">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setLocation("/send-money")}
               disabled={!hasVirtualCard}
-              className={`flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center border-0 ${
+              className={`flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-2.5 text-center border-0 ${
                 !hasVirtualCard ? 'opacity-50 cursor-not-allowed' : ''
               }`}
               data-testid="button-send"
@@ -211,7 +211,7 @@ export default function DashboardPage() {
               whileTap={{ scale: 0.95 }}
               onClick={() => setLocation("/receive-money")}
               disabled={!hasVirtualCard}
-              className={`flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center border-0 ${
+              className={`flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-2.5 text-center border-0 ${
                 !hasVirtualCard ? 'opacity-50 cursor-not-allowed' : ''
               }`}
               data-testid="button-receive"
@@ -223,7 +223,7 @@ export default function DashboardPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setLocation("/deposit")}
-              className="flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center border-0"
+              className="flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-2.5 text-center border-0"
               data-testid="button-deposit"
             >
               <span className="material-icons block mb-1">add</span>
@@ -233,7 +233,7 @@ export default function DashboardPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setLocation("/exchange")}
-              className="flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-3 text-center border-0"
+              className="flex-1 bg-white/20 backdrop-blur-sm rounded-xl p-2.5 text-center border-0"
               data-testid="button-exchange"
             >
               <span className="material-icons block mb-1">currency_exchange</span>
