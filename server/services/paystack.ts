@@ -11,23 +11,33 @@ export class PaystackService {
   private baseUrl = 'https://api.paystack.co';
 
   constructor() {
-    if (!process.env.PAYSTACK_SECRET_KEY) {
+    // Use KES-specific key if available, otherwise fallback to general key
+    const secretKey = process.env.PAYSTACK_SECRET_KEY_KES || process.env.PAYSTACK_SECRET_KEY;
+    if (!secretKey) {
       throw new Error('Paystack secret key not provided');
     }
-    this.secretKey = process.env.PAYSTACK_SECRET_KEY;
+    this.secretKey = secretKey;
   }
 
-  async initializePayment(email: string, amount: number, reference: string): Promise<PaystackResponse> {
+  async initializePayment(email: string, amount: number, reference: string, currency: string = 'KES', phoneNumber?: string): Promise<PaystackResponse> {
     try {
       const url = `${this.baseUrl}/transaction/initialize`;
       
-      const payload = {
+      const payload: any = {
         email,
-        amount: Math.round(amount * 100), // Convert to kobo
+        amount: Math.round(amount * 100), // Convert to kobo for USD or cents for KES
         reference,
-        currency: 'USD',
+        currency,
         channels: ['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer']
       };
+
+      // Add M-Pesa mobile money configuration for KES
+      if (currency === 'KES' && phoneNumber) {
+        payload.mobile_money = {
+          phone: phoneNumber,
+          provider: 'mpesa'
+        };
+      }
 
       const response = await fetch(url, {
         method: 'POST',
@@ -99,6 +109,19 @@ export class PaystackService {
         status: false,
         message: 'Customer creation failed'
       };
+    }
+  }
+
+  async convertUSDtoKES(usdAmount: number): Promise<number> {
+    try {
+      // Import exchange rate service dynamically to avoid circular imports
+      const { exchangeRateService } = await import('./exchange-rate');
+      const rate = await exchangeRateService.getExchangeRate('USD', 'KES');
+      return usdAmount * rate;
+    } catch (error) {
+      console.error('Currency conversion error:', error);
+      // Fallback to static rate if API fails
+      return usdAmount * 129; // Fallback KES rate
     }
   }
 

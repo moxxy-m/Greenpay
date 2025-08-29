@@ -273,11 +273,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid user email. Please update your profile with a valid email address." });
       }
 
-      // Initialize payment with Paystack
+      // Validate user phone number for M-Pesa
+      if (!user.phone) {
+        return res.status(400).json({ message: "Phone number is required for M-Pesa payments. Please update your profile." });
+      }
+
+      // Convert $60 USD to KES
+      const usdAmount = 60;
+      const kesAmount = await paystackService.convertUSDtoKES(usdAmount);
+      
+      console.log(`Converting $${usdAmount} USD to ${kesAmount} KES for card purchase`);
+
+      // Initialize payment with Paystack in KES currency
       const paymentData = await paystackService.initializePayment(
         user.email,
-        60, // $60 for virtual card
-        reference
+        kesAmount, // Converted amount in KES
+        reference,
+        'KES', // Use KES currency
+        user.phone // Use registered phone number for M-Pesa
       );
       
       if (!paymentData.status) {
@@ -506,17 +519,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid user email. Please update your profile with a valid email address." });
       }
 
+      // Validate user phone number for M-Pesa
+      if (!user.phone) {
+        return res.status(400).json({ message: "Phone number is required for M-Pesa payments. Please update your profile." });
+      }
+
       // Validate amount
       const depositAmount = parseFloat(amount);
       if (isNaN(depositAmount) || depositAmount <= 0) {
         return res.status(400).json({ message: "Invalid deposit amount" });
       }
 
-      // Initialize payment with Paystack
+      // Initialize payment with Paystack in KES currency
       const paymentData = await paystackService.initializePayment(
         user.email,
         depositAmount,
-        reference
+        reference,
+        'KES', // Use KES currency
+        user.phone // Use registered phone number for M-Pesa
       );
       
       if (!paymentData.status) {
