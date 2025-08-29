@@ -350,7 +350,7 @@ export default function DashboardPage() {
                         : 'text-red-600'
                     }`}>
                       {transaction.type === 'receive' || transaction.type === 'deposit' ? '+' : '-'}
-                      {transaction.currency} {transaction.amount}
+                      ${transaction.amount}
                     </p>
                     <p className={`text-xs ${
                       transaction.status === 'completed'

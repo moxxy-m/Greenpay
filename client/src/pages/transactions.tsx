@@ -237,7 +237,7 @@ export default function TransactionsPage() {
                           ? "text-destructive" 
                           : "text-primary"
                       }`} data-testid={`text-amount-${transaction.id}`}>
-                        {prefix}${transaction.amount} {transaction.currency}
+                        {prefix}${transaction.amount}
                       </p>
                       <div className="flex items-center justify-end space-x-2">
                         {transaction.metadata?.convertedAmount && transaction.metadata?.targetCurrency && (
