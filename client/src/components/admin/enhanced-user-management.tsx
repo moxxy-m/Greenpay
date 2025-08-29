@@ -316,7 +316,7 @@ export default function EnhancedUserManagement() {
                       <div className="text-sm">
                         <p>{user.totalTransactions} transactions</p>
                         <p className="text-gray-500">
-                          Last active: {format(new Date(user.lastActiveAt), "MMM dd")}
+                          Last active: {user.lastActiveAt ? format(new Date(user.lastActiveAt), "MMM dd") : 'N/A'}
                         </p>
                       </div>
                     </TableCell>
