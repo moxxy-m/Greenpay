@@ -26,6 +26,7 @@ import ExchangePage from "@/pages/exchange";
 import KycPage from "@/pages/kyc";
 import LoadingScreen from "@/components/loading-screen";
 import BottomNavigation from "@/components/bottom-navigation";
+import { PWAInstallPrompt } from "@/components/pwa-install";
 import PaymentCallbackPage from "@/pages/payment-callback";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard-new";
@@ -68,6 +69,7 @@ function App() {
           <Toaster />
           <Router />
           <BottomNavigation />
+          <PWAInstallPrompt />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
