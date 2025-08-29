@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { 
   Select,
   SelectContent,
@@ -38,7 +39,10 @@ import {
   DollarSign,
   User,
   Calendar,
-  Flag
+  Flag,
+  Edit,
+  Save,
+  X
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -301,7 +305,7 @@ export default function TransactionManagement() {
                     <TableRow key={transaction.id}>
                       <TableCell>
                         <span className="font-mono text-sm" data-testid={`text-transaction-id-${transaction.id}`}>
-                          {transaction.id.slice(0, 8)}...
+                          {transaction.id ? transaction.id.slice(0, 8) + '...' : 'N/A'}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -324,8 +328,8 @@ export default function TransactionManagement() {
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
-                          <p className="text-sm">From: {transaction.senderId.slice(0, 8)}...</p>
-                          <p className="text-sm">To: {transaction.recipientId.slice(0, 8)}...</p>
+                          <p className="text-sm">From: {transaction.senderId ? transaction.senderId.slice(0, 8) + '...' : 'N/A'}</p>
+                          <p className="text-sm">To: {transaction.recipientId ? transaction.recipientId.slice(0, 8) + '...' : 'N/A'}</p>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -412,12 +416,50 @@ function TransactionDetailsDialog({
   onStatusUpdate: (status: string) => void;
   isLoading: boolean;
 }) {
+  const [isEditingDate, setIsEditingDate] = useState(false);
+  const [editedCreatedAt, setEditedCreatedAt] = useState(transaction.createdAt);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const updateDateMutation = useMutation({
+    mutationFn: async (newDate: string) => {
+      const response = await apiRequest("PUT", `/api/admin/transactions/${transaction.id}/date`, {
+        createdAt: newDate
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Transaction date updated successfully"
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/transactions"] });
+      setIsEditingDate(false);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update transaction date",
+        variant: "destructive"
+      });
+    }
+  });
+
   const formatCurrency = (amount: string, currency: string) => {
     const num = parseFloat(amount);
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currency || 'USD',
     }).format(num);
+  };
+
+  const handleDateSave = () => {
+    updateDateMutation.mutate(editedCreatedAt);
+  };
+
+  const handleDateCancel = () => {
+    setEditedCreatedAt(transaction.createdAt);
+    setIsEditingDate(false);
   };
 
   return (
@@ -493,16 +535,64 @@ function TransactionDetailsDialog({
 
       {/* Timestamps */}
       <div>
-        <h4 className="font-medium text-gray-900 dark:text-white mb-2">Timeline</h4>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
-            <span className="text-sm">Created: {format(new Date(transaction.createdAt), "MMM dd, yyyy HH:mm:ss")}</span>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="font-medium text-gray-900 dark:text-white">Timeline</h4>
+          {!isEditingDate && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsEditingDate(true)}
+              data-testid="button-edit-date"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Date
+            </Button>
+          )}
+        </div>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-sm text-gray-500">Created Date & Time:</Label>
+            {isEditingDate ? (
+              <div className="flex items-center gap-2 mt-1">
+                <Input
+                  type="datetime-local"
+                  value={new Date(editedCreatedAt).toISOString().slice(0, 16)}
+                  onChange={(e) => setEditedCreatedAt(new Date(e.target.value).toISOString())}
+                  className="flex-1"
+                  data-testid="input-edit-date"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleDateSave}
+                  disabled={updateDateMutation.isPending}
+                  data-testid="button-save-date"
+                >
+                  <Save className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDateCancel}
+                  disabled={updateDateMutation.isPending}
+                  data-testid="button-cancel-date"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-1">
+                <Calendar className="w-4 h-4" />
+                <span className="text-sm">{format(new Date(transaction.createdAt), "MMM dd, yyyy HH:mm:ss")}</span>
+              </div>
+            )}
           </div>
           {transaction.updatedAt && (
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              <span className="text-sm">Updated: {format(new Date(transaction.updatedAt), "MMM dd, yyyy HH:mm:ss")}</span>
+            <div>
+              <Label className="text-sm text-gray-500">Last Updated:</Label>
+              <div className="flex items-center gap-2 mt-1">
+                <Calendar className="w-4 h-4" />
+                <span className="text-sm">{format(new Date(transaction.updatedAt), "MMM dd, yyyy HH:mm:ss")}</span>
+              </div>
             </div>
           )}
         </div>

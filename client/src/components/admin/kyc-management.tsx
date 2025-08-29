@@ -405,7 +405,7 @@ function KycReviewDialog({
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <User className="w-4 h-4" />
-              <span className="text-sm">User: {kyc.userId.slice(0, 8)}...</span>
+              <span className="text-sm">User: {kyc.userId ? kyc.userId.slice(0, 8) + '...' : 'N/A'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4" />
@@ -422,27 +422,45 @@ function KycReviewDialog({
           {kyc.frontImageUrl && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Front Image</p>
-              <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
-                <Image className="w-full h-32 mx-auto" />
-                <p className="text-xs text-center mt-2 text-gray-500">Front of document</p>
+              <div className="border rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800">
+                <img 
+                  src={kyc.frontImageUrl} 
+                  alt="Front of document" 
+                  className="w-full h-48 object-cover cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => window.open(kyc.frontImageUrl, '_blank')}
+                  data-testid="img-kyc-front"
+                />
+                <p className="text-xs text-center p-2 text-gray-500">Click to view full size</p>
               </div>
             </div>
           )}
           {kyc.backImageUrl && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Back Image</p>
-              <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
-                <Image className="w-full h-32 mx-auto" />
-                <p className="text-xs text-center mt-2 text-gray-500">Back of document</p>
+              <div className="border rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800">
+                <img 
+                  src={kyc.backImageUrl} 
+                  alt="Back of document" 
+                  className="w-full h-48 object-cover cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => window.open(kyc.backImageUrl, '_blank')}
+                  data-testid="img-kyc-back"
+                />
+                <p className="text-xs text-center p-2 text-gray-500">Click to view full size</p>
               </div>
             </div>
           )}
           {kyc.selfieUrl && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Selfie</p>
-              <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
-                <User className="w-full h-32 mx-auto" />
-                <p className="text-xs text-center mt-2 text-gray-500">Verification selfie</p>
+              <div className="border rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800">
+                <img 
+                  src={kyc.selfieUrl} 
+                  alt="Verification selfie" 
+                  className="w-full h-48 object-cover cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => window.open(kyc.selfieUrl, '_blank')}
+                  data-testid="img-kyc-selfie"
+                />
+                <p className="text-xs text-center p-2 text-gray-500">Click to view full size</p>
               </div>
             </div>
           )}

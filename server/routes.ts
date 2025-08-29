@@ -1624,6 +1624,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/admin/transactions/:id/date", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { createdAt } = req.body;
+      
+      if (!createdAt) {
+        return res.status(400).json({ message: "createdAt is required" });
+      }
+
+      const updatedTransaction = await storage.updateTransaction(id, { 
+        createdAt: new Date(createdAt),
+        updatedAt: new Date()
+      });
+      
+      if (!updatedTransaction) {
+        return res.status(404).json({ message: "Transaction not found" });
+      }
+
+      res.json({ transaction: updatedTransaction });
+    } catch (error) {
+      console.error('Transaction date update error:', error);
+      res.status(500).json({ message: "Failed to update transaction date" });
+    }
+  });
+
   // Admin Virtual Cards Management
   app.get("/api/admin/virtual-cards", async (req, res) => {
     try {
