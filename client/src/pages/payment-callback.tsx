@@ -41,15 +41,21 @@ export default function PaymentCallbackPage() {
         reference,
         userId: user?.id
       });
+      const data = await response.json();
       
-      if (response.ok) {
+      if (data.success && data.card) {
         toast({
           title: "Card Purchase Successful!",
           description: "Your virtual card has been activated",
         });
         setLocation("/virtual-card");
       } else {
-        throw new Error("Payment verification failed");
+        toast({
+          title: "Payment Incomplete",
+          description: data.message || "Your payment was not completed successfully. Please try again.",
+          variant: "destructive",
+        });
+        setLocation("/virtual-card");
       }
     } catch (error) {
       toast({

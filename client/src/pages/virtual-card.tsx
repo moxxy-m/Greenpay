@@ -47,18 +47,27 @@ export default function VirtualCardPage() {
               });
               const verifyData = await verifyResponse.json();
               
-              if (verifyData.card) {
+              if (verifyData.success && verifyData.card) {
+                // Payment successful
                 queryClient.invalidateQueries({ queryKey: ["/api/virtual-card", user?.id] });
                 queryClient.invalidateQueries({ queryKey: ["/api/transactions", user?.id] });
                 toast({
                   title: "Card Purchase Successful!",
                   description: "Your virtual card is now active and ready to use.",
                 });
+              } else {
+                // Payment failed
+                queryClient.invalidateQueries({ queryKey: ["/api/transactions", user?.id] });
+                toast({
+                  title: "Payment Incomplete",
+                  description: verifyData.message || "Your payment was not completed successfully. Please try again.",
+                  variant: "destructive",
+                });
               }
             } catch (error) {
               toast({
                 title: "Payment Verification Failed",
-                description: "Please contact support if your payment was successful.",
+                description: "Unable to verify your payment status. Please contact support if your payment was successful.",
                 variant: "destructive",
               });
             }

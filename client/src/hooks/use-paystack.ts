@@ -42,23 +42,33 @@ export function useVerifyCardPayment() {
       return response.json();
     },
     onSuccess: (data) => {
-      // Update user state to reflect card purchase
-      if (user) {
-        login({ ...user, hasVirtualCard: true });
+      if (data.success && data.card) {
+        // Payment successful - update user state
+        if (user) {
+          login({ ...user, hasVirtualCard: true });
+        }
+        
+        queryClient.invalidateQueries({ queryKey: ['virtual-card', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
+        
+        toast({
+          title: 'Payment Successful!',
+          description: 'Your virtual card has been activated.',
+        });
+      } else {
+        // Payment failed
+        queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
+        toast({
+          title: 'Payment Incomplete',
+          description: data.message || 'Your payment was not completed successfully.',
+          variant: 'destructive',
+        });
       }
-      
-      queryClient.invalidateQueries({ queryKey: ['virtual-card', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
-      
-      toast({
-        title: 'Payment Successful!',
-        description: 'Your virtual card has been activated.',
-      });
     },
     onError: (error: any) => {
       toast({
         title: 'Payment Verification Failed',
-        description: error.message || 'Unable to verify payment',
+        description: error.message || 'Unable to verify payment status',
         variant: 'destructive',
       });
     },

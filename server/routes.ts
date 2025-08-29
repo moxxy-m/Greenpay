@@ -461,10 +461,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { reference, userId } = req.body;
       
-      // For demo - auto-approve payment verification
-      console.log('Demo payment verification for reference:', reference);
+      if (!reference || !userId) {
+        return res.status(400).json({ message: "Reference and user ID are required" });
+      }
 
-      // Create virtual card
+      console.log('Verifying payment for reference:', reference);
+
+      // Verify payment with Paystack
+      const verificationResult = await paystackService.verifyPayment(reference);
+      
+      if (!verificationResult.status) {
+        console.error('Paystack verification failed:', verificationResult.message);
+        return res.status(400).json({ 
+          message: "Payment verification failed", 
+          error: verificationResult.message,
+          success: false
+        });
+      }
+
+      const paymentData = verificationResult.data;
+      console.log('Paystack verification result:', paymentData.status, paymentData.amount);
+
+      // Check if payment was successful
+      if (paymentData.status !== 'success') {
+        console.log('Payment was not successful:', paymentData.status);
+        
+        // Create failed transaction record
+        const failedTransaction = await storage.createTransaction({
+          userId,
+          type: "card_purchase",
+          amount: (paymentData.amount / 100).toString(), // Convert from kobo/cents
+          currency: paymentData.currency || "KES",
+          description: "Virtual Card Purchase - Failed",
+          fee: "0.00",
+          paystackReference: reference,
+          status: "failed"
+        });
+
+        // Send failure notification
+        await notificationService.sendTransactionNotification(userId, failedTransaction);
+        
+        return res.status(400).json({ 
+          message: "Payment was not completed successfully", 
+          status: paymentData.status,
+          success: false,
+          transaction: failedTransaction
+        });
+      }
+
+      // Payment was successful - create virtual card
+      console.log('Payment successful, creating virtual card');
       const card = await storage.createVirtualCard({ 
         userId,
         paystackReference: reference
@@ -472,25 +518,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.updateUser(userId, { hasVirtualCard: true });
       
-      // Create transaction record
+      // Create successful transaction record
       const transaction = await storage.createTransaction({
         userId,
         type: "card_purchase",
-        amount: "60.00",
-        currency: "USD",
-        description: "Virtual Card Purchase",
+        amount: (paymentData.amount / 100).toString(), // Convert from kobo/cents
+        currency: paymentData.currency || "KES",
+        description: "Virtual Card Purchase - Successful",
         fee: "0.00",
         paystackReference: reference,
         status: "completed"
       });
 
-      // Send notifications
+      // Send success notification
       await notificationService.sendTransactionNotification(userId, transaction);
       
-      res.json({ card, transaction, message: "Virtual card purchased successfully!" });
+      res.json({ 
+        card, 
+        transaction, 
+        message: "Virtual card purchased successfully!",
+        success: true
+      });
     } catch (error) {
       console.error('Card payment verification error:', error);
-      res.status(500).json({ message: "Error verifying card payment" });
+      res.status(500).json({ 
+        message: "Error verifying card payment",
+        success: false
+      });
     }
   });
 
