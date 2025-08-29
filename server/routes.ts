@@ -1441,28 +1441,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
       
-      const { amount, type } = req.body;
+      const { amount, type, details } = req.body;
       const currentBalance = parseFloat(user.balance || "0");
       const updateAmount = parseFloat(amount);
       
       let newBalance: number;
+      let transactionType: 'receive' | 'send';
+      
       switch (type) {
         case "add":
           newBalance = currentBalance + updateAmount;
+          transactionType = 'receive';
           break;
         case "subtract":
           newBalance = Math.max(0, currentBalance - updateAmount);
+          transactionType = 'send';
           break;
         case "set":
           newBalance = updateAmount;
+          transactionType = updateAmount > currentBalance ? 'receive' : 'send';
           break;
         default:
           return res.status(400).json({ error: "Invalid update type" });
       }
       
+      // Update user balance
       const updatedUser = await storage.updateUser(req.params.id, { 
         balance: newBalance.toFixed(2) 
       });
+      
+      // Create transaction record for history
+      const transactionAmount = type === 'set' ? Math.abs(newBalance - currentBalance) : updateAmount;
+      const transactionData = {
+        userId: req.params.id,
+        type: transactionType,
+        amount: transactionAmount.toFixed(2),
+        currency: user.defaultCurrency || 'USD',
+        status: 'completed' as const,
+        description: details || `Admin ${type} balance adjustment`,
+        recipientId: null,
+        recipientName: 'System Admin',
+        fee: '0.00',
+        exchangeRate: 1,
+        sourceAmount: transactionAmount.toFixed(2),
+        sourceCurrency: user.defaultCurrency || 'USD'
+      };
+      
+      await storage.createTransaction(transactionData);
+      
       res.json({ user: updatedUser, newBalance });
     } catch (error) {
       console.error('Admin balance update error:', error);

@@ -80,6 +80,7 @@ export default function EnhancedUserManagement() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [balanceUpdate, setBalanceUpdate] = useState("");
   const [updateType, setUpdateType] = useState<"add" | "subtract" | "set">("add");
+  const [transactionDetails, setTransactionDetails] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -119,10 +120,11 @@ export default function EnhancedUserManagement() {
   });
 
   const updateBalanceMutation = useMutation({
-    mutationFn: async ({ userId, amount, type }: { userId: string; amount: string; type: string }) => {
+    mutationFn: async ({ userId, amount, type, details }: { userId: string; amount: string; type: string; details: string }) => {
       const response = await apiRequest("PUT", `/api/admin/users/${userId}/balance`, {
         amount,
-        type
+        type,
+        details
       });
       return response.json();
     },
@@ -134,6 +136,7 @@ export default function EnhancedUserManagement() {
       });
       setSelectedUser(null);
       setBalanceUpdate("");
+      setTransactionDetails("");
     },
     onError: () => {
       toast({
@@ -210,7 +213,8 @@ export default function EnhancedUserManagement() {
     updateBalanceMutation.mutate({
       userId: user.id,
       amount: balanceUpdate,
-      type: updateType
+      type: updateType,
+      details: transactionDetails || `Admin ${updateType} balance adjustment`
     });
   };
 
@@ -460,7 +464,7 @@ function UserManagementDialog({
             </span>
           </div>
           
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <Label htmlFor="update-type">Action</Label>
               <Select value={updateType} onValueChange={(value: "add" | "subtract" | "set") => setUpdateType(value)}>
@@ -497,17 +501,29 @@ function UserManagementDialog({
                 data-testid="input-balance-amount"
               />
             </div>
-            
-            <div className="flex items-end">
-              <Button
-                onClick={() => onUpdateBalance(user)}
-                disabled={isLoading || !balanceUpdate}
-                className="w-full"
-                data-testid="button-update-balance"
-              >
-                {isLoading ? "Updating..." : "Update Balance"}
-              </Button>
-            </div>
+          </div>
+          
+          <div className="mb-4">
+            <Label htmlFor="transaction-details">Transaction Details</Label>
+            <Input
+              id="transaction-details"
+              type="text"
+              value={transactionDetails}
+              onChange={(e) => setTransactionDetails(e.target.value)}
+              placeholder="Enter description for transaction history (e.g., Admin adjustment, Bonus payment, Refund)"
+              data-testid="input-transaction-details"
+            />
+          </div>
+          
+          <div className="flex justify-end">
+            <Button
+              onClick={() => onUpdateBalance(user)}
+              disabled={isLoading || !balanceUpdate}
+              className="w-full"
+              data-testid="button-update-balance"
+            >
+              {isLoading ? "Updating..." : "Update Balance"}
+            </Button>
           </div>
         </div>
       </div>
