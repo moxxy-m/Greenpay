@@ -339,7 +339,7 @@ export default function EnhancedUserManagement() {
                               <Eye className="w-4 h-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
+                          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle>User Management</DialogTitle>
                               <DialogDescription>

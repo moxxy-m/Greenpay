@@ -277,7 +277,7 @@ export default function VirtualCardManagement() {
                               <Eye className="w-4 h-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
+                          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle>Virtual Card Details</DialogTitle>
                               <DialogDescription>
