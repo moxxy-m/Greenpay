@@ -1,15 +1,17 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { X, Sparkles } from "lucide-react";
 
 export default function VirtualCardPage() {
   const [, setLocation] = useLocation();
   const [showCardDetails, setShowCardDetails] = useState(false);
+  const [showDiscountPopup, setShowDiscountPopup] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -21,6 +23,16 @@ export default function VirtualCardPage() {
 
   const card = (cardData as any)?.card;
   const hasCard = user?.hasVirtualCard || !!card;
+
+  // Show discount popup when page loads (only if user doesn't have a card)
+  useEffect(() => {
+    if (!hasCard) {
+      const timer = setTimeout(() => {
+        setShowDiscountPopup(true);
+      }, 1000); // Show after 1 second
+      return () => clearTimeout(timer);
+    }
+  }, [hasCard]);
 
   const purchaseCardMutation = useMutation({
     mutationFn: async () => {
@@ -174,7 +186,13 @@ export default function VirtualCardPage() {
               <div className="bg-muted p-4 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium">Virtual Card</span>
-                  <span className="text-xl font-bold">$60.00</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm line-through text-muted-foreground">$60.00</span>
+                    <span className="text-xl font-bold text-green-600">$15.00</span>
+                    <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                      75% OFF
+                    </div>
+                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground text-left">
                   One-time purchase • No monthly fees • Valid for 3 years
@@ -202,11 +220,11 @@ export default function VirtualCardPage() {
 
               <Button
                 onClick={() => purchaseCardMutation.mutate()}
-                className="w-full text-lg py-3"
+                className="w-full text-lg py-3 bg-green-600 hover:bg-green-700"
                 disabled={false}
                 data-testid="button-purchase-card"
               >
-                {purchaseCardMutation.isPending ? "Processing..." : "Purchase Card - $60.00"}
+                {purchaseCardMutation.isPending ? "Processing..." : "Purchase Card - $15.00"}
               </Button>
 
               <p className="text-xs text-muted-foreground">
@@ -413,6 +431,134 @@ export default function VirtualCardPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* Animated Discount Popup */}
+      <AnimatePresence>
+        {showDiscountPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowDiscountPopup(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.5, rotateY: -90, opacity: 0 }}
+              animate={{ scale: 1, rotateY: 0, opacity: 1 }}
+              exit={{ scale: 0.5, rotateY: 90, opacity: 0 }}
+              transition={{ 
+                type: "spring", 
+                damping: 20, 
+                stiffness: 300,
+                duration: 0.6
+              }}
+              className="bg-gradient-to-br from-red-500 via-pink-500 to-purple-600 p-6 rounded-3xl max-w-sm w-full mx-4 text-white relative overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowDiscountPopup(false)}
+                className="absolute top-4 right-4 p-2 rounded-full bg-white/20 backdrop-blur-sm"
+                data-testid="button-close-popup"
+              >
+                <X className="w-4 h-4" />
+              </motion.button>
+
+              {/* Sparkles animation */}
+              <div className="absolute inset-0 overflow-hidden">
+                {[...Array(6)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, scale: 0 }}
+                    animate={{ 
+                      opacity: [0, 1, 0], 
+                      scale: [0, 1, 0],
+                      x: [0, Math.random() * 100 - 50],
+                      y: [0, Math.random() * 100 - 50]
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: i * 0.3,
+                      repeatType: "loop"
+                    }}
+                    className="absolute"
+                    style={{
+                      left: `${Math.random() * 100}%`,
+                      top: `${Math.random() * 100}%`
+                    }}
+                  >
+                    <Sparkles className="w-4 h-4 text-yellow-300" />
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Content */}
+              <div className="relative z-10 text-center">
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="mb-4"
+                >
+                  <div className="text-6xl font-black mb-2">75%</div>
+                  <div className="text-xl font-bold">OFF</div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="mb-6"
+                >
+                  <h3 className="text-xl font-bold mb-2">Limited Time Offer!</h3>
+                  <p className="text-white/90 text-sm">
+                    Get your Virtual Card for just <span className="font-bold text-yellow-300">$15</span> instead of <span className="line-through">$60</span>
+                  </p>
+                </motion.div>
+
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                  className="space-y-3"
+                >
+                  <Button
+                    onClick={() => {
+                      setShowDiscountPopup(false);
+                      purchaseCardMutation.mutate();
+                    }}
+                    className="w-full bg-white text-purple-600 hover:bg-gray-100 font-bold py-3"
+                    data-testid="button-claim-offer"
+                  >
+                    Claim This Offer Now!
+                  </Button>
+                  
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => setShowDiscountPopup(false)}
+                    className="text-white/80 text-sm underline"
+                    data-testid="button-maybe-later"
+                  >
+                    Maybe later
+                  </motion.button>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.8 }}
+                  className="mt-4 text-xs text-white/70"
+                >
+                  ⏰ Offer valid for a limited time only
+                </motion.div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -276,8 +276,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Phone number is required for M-Pesa payments. Please update your profile." });
       }
 
-      // Convert $60 USD to KES
-      const usdAmount = 60;
+      // Convert $15 USD to KES (75% off from original $60)
+      const usdAmount = 15;
       const kesAmount = await paystackService.convertUSDtoKES(usdAmount);
       
       console.log(`Converting $${usdAmount} USD to ${kesAmount} KES for card purchase`);
