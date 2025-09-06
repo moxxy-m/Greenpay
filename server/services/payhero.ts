@@ -87,7 +87,17 @@ export class PayHeroService {
       console.log('PayHero payment request:', { 
         amount: payload.amount, 
         phone: payload.phone_number, 
-        reference: externalReference 
+        reference: externalReference,
+        channel_id: payload.channel_id,
+        url: url
+      });
+      
+      // Debug auth token format (hide actual token for security)
+      console.log('Auth token format check:', {
+        tokenExists: !!this.authToken,
+        tokenLength: this.authToken.length,
+        tokenPrefix: this.authToken.substring(0, 10) + '...',
+        channelId: this.channelId
       });
 
       const response = await fetch(url, {
@@ -101,7 +111,24 @@ export class PayHeroService {
 
       const data = await response.json() as any;
       
-      console.log('PayHero response:', { success: data.success, status: data.status, reference: data.reference });
+      console.log('PayHero HTTP response:', { 
+        httpStatus: response.status, 
+        success: data.success, 
+        status: data.status, 
+        reference: data.reference,
+        error: data.error || data.message 
+      });
+      
+      // Check for HTTP errors first
+      if (!response.ok) {
+        console.error('PayHero HTTP error:', response.status, data);
+        return {
+          success: false,
+          status: `HTTP_${response.status}`,
+          reference: '',
+          CheckoutRequestID: ''
+        };
+      }
       
       return {
         success: data.success || false,
