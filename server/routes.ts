@@ -9,7 +9,7 @@ import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 import { whatsappService } from "./services/whatsapp";
 import { exchangeRateService } from "./services/exchange-rate";
-import { paystackService } from "./services/paystack";
+import { payHeroService } from "./services/payhero";
 import { twoFactorService } from "./services/2fa";
 import { biometricService } from "./services/biometric";
 import { notificationService } from "./services/notifications";
@@ -264,7 +264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Note: In production environment, additional KYC verification may be required
 
       // Generate unique reference
-      const reference = paystackService.generateReference();
+      const reference = payHeroService.generateReference();
       
       // Validate user email
       if (!user.email || !user.email.includes('@') || !user.email.includes('.')) {
@@ -278,29 +278,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Convert $15 USD to KES (75% off from original $60)
       const usdAmount = 15;
-      const kesAmount = await paystackService.convertUSDtoKES(usdAmount);
+      const kesAmount = await payHeroService.convertUSDtoKES(usdAmount);
       
       console.log(`Converting $${usdAmount} USD to ${kesAmount} KES for card purchase`);
 
-      // Initialize payment with Paystack in KES currency
-      const callbackUrl = `${req.protocol}://${req.get('host')}/api/payment-callback?reference=${reference}&type=virtual-card`;
+      // Initialize payment with PayHero M-Pesa STK Push
+      const callbackUrl = `${req.protocol}://${req.get('host')}/api/payhero-callback?reference=${reference}&type=virtual-card`;
       
-      const paymentData = await paystackService.initializePayment(
-        user.email,
-        kesAmount, // Converted amount in KES
-        reference,
-        'KES', // Use KES currency
-        user.phone, // Use registered phone number for M-Pesa
+      const paymentData = await payHeroService.initiateMpesaPayment(
+        kesAmount, // Amount in KES
+        user.phone, // Phone number for M-Pesa STK Push
+        reference, // External reference
+        user.fullName, // Customer name
         callbackUrl // Callback URL for tracking
       );
       
-      if (!paymentData.status) {
-        return res.status(400).json({ message: paymentData.message });
+      if (!paymentData.success) {
+        return res.status(400).json({ message: 'Payment initiation failed', status: paymentData.status });
       }
       
       res.json({ 
-        authorizationUrl: paymentData.data.authorization_url,
-        reference: reference
+        success: true,
+        reference: paymentData.reference,
+        checkoutRequestId: paymentData.CheckoutRequestID,
+        status: paymentData.status,
+        message: 'STK Push sent to your phone. Please enter your M-Pesa PIN to complete payment.'
       });
     } catch (error) {
       console.error('Card payment initialization error:', error);
@@ -1893,6 +1895,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error retrieving user:", error);
       res.status(500).json({ error: "Failed to retrieve user data" });
+    }
+  });
+
+  // PayHero callback endpoint
+  app.post("/api/payhero-callback", async (req, res) => {
+    try {
+      console.log('PayHero callback received:', JSON.stringify(req.body, null, 2));
+      
+      const callbackData = req.body;
+      const { reference, type } = req.query;
+      
+      if (!callbackData.response) {
+        console.error('Invalid PayHero callback data - missing response');
+        return res.status(400).json({ message: "Invalid callback data" });
+      }
+
+      const paymentResult = payHeroService.processCallback(callbackData);
+      console.log('Processed payment result:', paymentResult);
+      
+      if (paymentResult.success) {
+        if (type === 'virtual-card') {
+          // Find the user by the payment reference
+          const transactions = await storage.getAllTransactions();
+          let userId = null;
+          
+          // Find user based on the payment reference
+          // This is a simple approach - in production you might want to store reference-to-user mapping
+          for (const transaction of transactions) {
+            if (transaction.id.includes(paymentResult.reference) || 
+                transaction.description?.includes(paymentResult.reference)) {
+              userId = transaction.fromUserId || transaction.toUserId;
+              break;
+            }
+          }
+          
+          if (!userId) {
+            console.error('Could not find user for payment reference:', paymentResult.reference);
+            return res.status(200).json({ message: "Payment processed but user not found" });
+          }
+
+          // Create virtual card for the user
+          const cardData = {
+            userId: userId,
+            cardNumber: `5399 ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)}`,
+            expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 3), // 3 years from now
+            cvv: Math.floor(100 + Math.random() * 900).toString(),
+            balance: 0,
+            status: 'active' as const,
+            type: 'virtual' as const
+          };
+
+          const newCard = await storage.createVirtualCard(cardData);
+          console.log('Virtual card created successfully:', newCard.id);
+
+          // Create a transaction record for the card purchase
+          const transactionData = {
+            fromUserId: userId,
+            toUserId: userId, // Self transaction for card purchase
+            amount: paymentResult.amount.toString(),
+            currency: 'KES',
+            status: 'completed' as const,
+            type: 'card_purchase' as const,
+            description: `Virtual card purchase - Payment via M-Pesa (${paymentResult.mpesaReceiptNumber})`,
+            fees: '0'
+          };
+
+          await storage.createTransaction(transactionData);
+          console.log('Card purchase transaction recorded');
+        }
+        
+        console.log('PayHero payment completed successfully');
+        res.status(200).json({ message: "Payment processed successfully" });
+      } else {
+        console.log('PayHero payment failed:', paymentResult.status);
+        res.status(200).json({ message: "Payment failed", status: paymentResult.status });
+      }
+    } catch (error) {
+      console.error('PayHero callback processing error:', error);
+      res.status(500).json({ message: "Error processing payment callback" });
     }
   });
 
