@@ -42,51 +42,54 @@ export default function VirtualCardPage() {
       return response.json();
     },
     onSuccess: (data) => {
-      if (data.authorizationUrl) {
-        // Open Paystack in a new window for payment
-        const paymentWindow = window.open(data.authorizationUrl, '_blank', 'width=600,height=700');
+      if (data.success) {
+        // PayHero STK Push initiated successfully
+        toast({
+          title: "STK Push Sent!",
+          description: data.message || "Check your phone and enter your M-Pesa PIN to complete the payment.",
+        });
         
-        // Monitor for payment completion
-        const checkPayment = setInterval(async () => {
-          if (paymentWindow?.closed) {
-            clearInterval(checkPayment);
+        // Start polling for payment completion
+        let pollCount = 0;
+        const maxPolls = 60; // Poll for 5 minutes max (5 second intervals)
+        
+        const pollPayment = setInterval(async () => {
+          pollCount++;
+          
+          try {
+            // Check if card was created (indicating successful payment)
+            queryClient.invalidateQueries({ queryKey: ["/api/virtual-card", user?.id] });
+            const cardQuery = await queryClient.fetchQuery({
+              queryKey: ["/api/virtual-card", user?.id],
+            });
             
-            // Verify payment
-            try {
-              const verifyResponse = await apiRequest("POST", "/api/virtual-card/verify-payment", {
-                reference: data.reference,
-                userId: user?.id
-              });
-              const verifyData = await verifyResponse.json();
-              
-              if (verifyData.success && verifyData.card) {
-                // Payment successful
-                queryClient.invalidateQueries({ queryKey: ["/api/virtual-card", user?.id] });
-                queryClient.invalidateQueries({ queryKey: ["/api/transactions", user?.id] });
-                toast({
-                  title: "Card Purchase Successful!",
-                  description: "Your virtual card is now active and ready to use.",
-                });
-              } else {
-                // Payment failed
-                queryClient.invalidateQueries({ queryKey: ["/api/transactions", user?.id] });
-                toast({
-                  title: "Payment Incomplete",
-                  description: verifyData.message || "Your payment was not completed successfully. Please try again.",
-                  variant: "destructive",
-                });
-              }
-            } catch (error) {
+            if ((cardQuery as any)?.card) {
+              // Payment successful - card was created
+              clearInterval(pollPayment);
+              queryClient.invalidateQueries({ queryKey: ["/api/transactions", user?.id] });
               toast({
-                title: "Payment Verification Failed",
-                description: "Unable to verify your payment status. Please contact support if your payment was successful.",
+                title: "Card Purchase Successful!",
+                description: "Your virtual card is now active and ready to use.",
+              });
+              return;
+            }
+            
+            // Stop polling after max attempts
+            if (pollCount >= maxPolls) {
+              clearInterval(pollPayment);
+              toast({
+                title: "Payment Status Unknown",
+                description: "We're still processing your payment. Please check back in a few minutes or contact support if you completed the payment.",
                 variant: "destructive",
               });
             }
+          } catch (error) {
+            // Continue polling on error
+            console.log('Payment polling error:', error);
           }
-        }, 1000);
+        }, 5000); // Poll every 5 seconds
       } else {
-        throw new Error(data.message || "Unable to initialize payment");
+        throw new Error(data.message || "Unable to initialize M-Pesa payment");
       }
     },
     onError: (error: any) => {
