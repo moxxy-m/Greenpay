@@ -92,11 +92,17 @@ export class PayHeroService {
         url: url
       });
       
+      // Check if auth token already includes "Basic" prefix
+      const authHeader = this.authToken.startsWith('Basic ') 
+        ? this.authToken 
+        : `Basic ${this.authToken}`;
+      
       // Debug auth token format (hide actual token for security)
       console.log('Auth token format check:', {
         tokenExists: !!this.authToken,
         tokenLength: this.authToken.length,
-        tokenPrefix: this.authToken.substring(0, 10) + '...',
+        hasBasicPrefix: this.authToken.startsWith('Basic '),
+        finalAuthHeader: authHeader.substring(0, 15) + '...',
         channelId: this.channelId
       });
 
@@ -104,7 +110,7 @@ export class PayHeroService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${this.authToken}`
+          'Authorization': authHeader
         },
         body: JSON.stringify(payload)
       });
