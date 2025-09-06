@@ -468,10 +468,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Reference and user ID are required" });
       }
 
-      console.log('Verifying payment for reference:', reference);
+      console.log('PayHero payment verification not supported - using callback method');
 
-      // Verify payment with Paystack
-      const verificationResult = await paystackService.verifyPayment(reference);
+      // PayHero uses callbacks for payment verification, not manual verification
+      return res.status(400).json({ 
+        message: "Payment verification not supported with PayHero. Payments are processed via callbacks.",
+        success: false
+      });
       
       if (!verificationResult.status) {
         console.error('Paystack verification failed:', verificationResult.message);
@@ -1951,8 +1954,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Create a transaction record for the card purchase
           const transactionData = {
-            fromUserId: userId,
-            toUserId: userId, // Self transaction for card purchase
+            userId: userId,
             amount: paymentResult.amount.toString(),
             currency: 'KES',
             status: 'completed' as const,
