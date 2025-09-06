@@ -92,19 +92,35 @@ export class PayHeroService {
         url: url
       });
       
-      // Check if auth token already includes "Basic" prefix
-      const authHeader = this.authToken.startsWith('Basic ') 
-        ? this.authToken 
-        : `Basic ${this.authToken}`;
-      
-      // Debug auth token format (hide actual token for security)
-      console.log('Auth token format check:', {
+      // Try different auth header formats to troubleshoot
+      let authHeader;
+      let debugInfo = {
         tokenExists: !!this.authToken,
-        tokenLength: this.authToken.length,
-        hasBasicPrefix: this.authToken.startsWith('Basic '),
-        finalAuthHeader: authHeader.substring(0, 15) + '...',
-        channelId: this.channelId
-      });
+        originalLength: this.authToken.length,
+        originalPrefix: this.authToken.substring(0, 15) + '...',
+        channelId: this.channelId,
+        attempts: []
+      };
+
+      // If token appears to start with something other than expected base64
+      if (this.authToken.startsWith('MBasic') || this.authToken.includes('Basic')) {
+        // Extract everything after any "Basic" occurrence
+        const parts = this.authToken.split('Basic');
+        if (parts.length > 1) {
+          const cleanToken = parts[parts.length - 1].trim();
+          authHeader = `Basic ${cleanToken}`;
+          debugInfo.attempts.push(`Extracted after Basic: ${cleanToken.substring(0, 10)}...`);
+        } else {
+          authHeader = this.authToken;
+          debugInfo.attempts.push(`Used as-is: ${this.authToken.substring(0, 15)}...`);
+        }
+      } else {
+        // Assume it's a clean base64 token
+        authHeader = `Basic ${this.authToken}`;
+        debugInfo.attempts.push(`Added Basic prefix: Basic ${this.authToken.substring(0, 10)}...`);
+      }
+      
+      console.log('Auth token troubleshooting:', debugInfo);
 
       const response = await fetch(url, {
         method: 'POST',
