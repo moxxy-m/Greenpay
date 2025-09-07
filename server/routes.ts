@@ -1901,6 +1901,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PayHero admin settings endpoints
+  app.get("/api/admin/payhero-settings", async (req, res) => {
+    try {
+      // Return current PayHero settings from environment
+      const settings = {
+        channelId: process.env.PAYHERO_CHANNEL_ID || "608",
+        provider: "m-pesa",
+        username: process.env.PAYHERO_USERNAME ? "****" : "",
+        password: process.env.PAYHERO_PASSWORD ? "****" : "",
+      };
+      
+      res.json(settings);
+    } catch (error) {
+      console.error('Error fetching PayHero settings:', error);
+      res.status(500).json({ message: "Error fetching PayHero settings" });
+    }
+  });
+
+  app.put("/api/admin/payhero-settings", async (req, res) => {
+    try {
+      const { channelId, provider } = req.body;
+      
+      // Update PayHero service configuration
+      // Note: In production, you'd want to update environment variables securely
+      // For now, we'll update the service instance
+      
+      console.log('Admin updated PayHero settings:', { channelId, provider });
+      
+      // Update the PayHero service channel ID
+      (payHeroService as any).channelId = parseInt(channelId);
+      
+      res.json({ 
+        success: true, 
+        message: "PayHero settings updated successfully",
+        channelId,
+        provider 
+      });
+    } catch (error) {
+      console.error('Error updating PayHero settings:', error);
+      res.status(500).json({ message: "Error updating PayHero settings" });
+    }
+  });
+
+  app.post("/api/admin/test-payhero", async (req, res) => {
+    try {
+      const { amount, phone, reference } = req.body;
+      
+      console.log('Admin testing PayHero connection:', { amount, phone, reference });
+      
+      // Test PayHero connection with minimal transaction
+      const testResult = await payHeroService.initiateMpesaPayment(
+        amount || 1,
+        phone || "0700000000", 
+        reference || `TEST-${Date.now()}`,
+        "Test User",
+        null // No callback for test
+      );
+      
+      res.json({
+        success: testResult.success,
+        status: testResult.status,
+        reference: testResult.reference,
+        message: testResult.success 
+          ? "PayHero connection test successful" 
+          : `Connection test failed: ${testResult.status}`
+      });
+    } catch (error) {
+      console.error('PayHero connection test error:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Connection test failed: " + error.message 
+      });
+    }
+  });
+
+  // Admin login as user endpoint
+  app.post("/api/admin/login-as-user", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      console.log('Admin logging in as user:', user.email);
+      
+      // Create session for the user (simulate login)
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          phone: user.phone,
+          country: user.country,
+          balance: user.balance || "0.00",
+          hasVirtualCard: user.hasVirtualCard || false,
+          kycStatus: user.kycStatus || "pending",
+          isEmailVerified: user.isEmailVerified,
+          isPhoneVerified: user.isPhoneVerified
+        },
+        message: "Admin logged in as user successfully"
+      });
+    } catch (error) {
+      console.error('Admin login as user error:', error);
+      res.status(500).json({ message: "Error logging in as user" });
+    }
+  });
+
   // PayHero transaction status endpoint
   app.get("/api/transaction-status/:reference", async (req, res) => {
     try {

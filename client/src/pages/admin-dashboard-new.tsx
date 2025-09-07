@@ -22,7 +22,8 @@ import {
   LayoutDashboard,
   BarChart3,
   Menu,
-  X
+  X,
+  Smartphone
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
@@ -34,6 +35,7 @@ import KycManagement from "@/components/admin/kyc-management";
 import TransactionManagement from "@/components/admin/transaction-management";
 import VirtualCardManagement from "@/components/admin/virtual-card-management";
 import AdminSettings from "@/components/admin/admin-settings";
+import PayHeroSettings from "@/components/admin/payhero-settings";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -90,6 +92,7 @@ export default function AdminDashboard() {
     { id: "kyc", label: "KYC Review", icon: FileCheck },
     { id: "transactions", label: "Transactions", icon: DollarSign },
     { id: "cards", label: "Virtual Cards", icon: CreditCard },
+    { id: "payhero", label: "PayHero Settings", icon: Smartphone },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "settings", label: "Settings", icon: Settings },
   ];
@@ -106,6 +109,8 @@ export default function AdminDashboard() {
         return <AdminTransactionsTab />;
       case "cards":
         return <AdminCardsTab />;
+      case "payhero":
+        return <PayHeroSettings />;
       case "analytics":
         return <AdminAnalyticsTab dashboardData={dashboardData} />;
       case "settings":
