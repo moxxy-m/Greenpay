@@ -12,6 +12,7 @@ import { Settings, Save, TestTube, CheckCircle, XCircle } from "lucide-react";
 interface PayHeroSettings {
   channelId: string;
   provider: string;
+  cardPrice: string;
   username?: string;
   password?: string;
 }
@@ -19,7 +20,8 @@ interface PayHeroSettings {
 export default function PayHeroSettings() {
   const [settings, setSettings] = useState<PayHeroSettings>({
     channelId: "608",
-    provider: "m-pesa"
+    provider: "m-pesa",
+    cardPrice: "60.00"
   });
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -156,6 +158,22 @@ export default function PayHeroSettings() {
               </p>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="cardPrice">Virtual Card Price (USD)</Label>
+              <Input
+                id="cardPrice"
+                type="number"
+                step="0.01"
+                value={settings.cardPrice}
+                onChange={(e) => setSettings({ ...settings, cardPrice: e.target.value })}
+                placeholder="60.00"
+                data-testid="input-card-price"
+              />
+              <p className="text-sm text-gray-500">
+                Price for purchasing virtual cards (automatically synced to user side)
+              </p>
+            </div>
+
             <div className="flex gap-3 pt-4">
               <Button 
                 onClick={handleSave} 
@@ -228,6 +246,11 @@ export default function PayHeroSettings() {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Provider:</span>
                 <Badge variant="outline" className="capitalize">{settings.provider}</Badge>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Card Price:</span>
+                <Badge variant="outline">${settings.cardPrice}</Badge>
               </div>
               
               <div className="flex justify-between items-center">

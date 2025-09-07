@@ -1904,10 +1904,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // PayHero admin settings endpoints
   app.get("/api/admin/payhero-settings", async (req, res) => {
     try {
-      // Return current PayHero settings from environment
+      // Get settings from database first, fallback to environment
+      const channelIdSetting = await storage.getSystemSetting("payhero", "channel_id");
+      const providerSetting = await storage.getSystemSetting("payhero", "provider");
+      const cardPriceSetting = await storage.getSystemSetting("virtual_card", "price");
+      
       const settings = {
-        channelId: process.env.PAYHERO_CHANNEL_ID || "608",
-        provider: "m-pesa",
+        channelId: channelIdSetting?.value || process.env.PAYHERO_CHANNEL_ID || "608",
+        provider: providerSetting?.value || "m-pesa",
+        cardPrice: cardPriceSetting?.value || "60.00",
         username: process.env.PAYHERO_USERNAME ? "****" : "",
         password: process.env.PAYHERO_PASSWORD ? "****" : "",
       };
@@ -1921,22 +1926,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/admin/payhero-settings", async (req, res) => {
     try {
-      const { channelId, provider } = req.body;
+      const { channelId, provider, cardPrice } = req.body;
       
-      // Update PayHero service configuration
-      // Note: In production, you'd want to update environment variables securely
-      // For now, we'll update the service instance
+      console.log('Admin updated PayHero settings:', { channelId, provider, cardPrice });
       
-      console.log('Admin updated PayHero settings:', { channelId, provider });
+      // Save settings to database for persistence
+      await storage.setSystemSetting({
+        category: "payhero",
+        key: "channel_id",
+        value: channelId,
+        description: "PayHero payment channel ID"
+      });
       
-      // Update the PayHero service channel ID
+      await storage.setSystemSetting({
+        category: "payhero",
+        key: "provider",
+        value: provider,
+        description: "PayHero payment provider"
+      });
+      
+      if (cardPrice) {
+        await storage.setSystemSetting({
+          category: "virtual_card",
+          key: "price",
+          value: cardPrice,
+          description: "Virtual card purchase price in USD"
+        });
+      }
+      
+      // Update the PayHero service channel ID in memory
       (payHeroService as any).channelId = parseInt(channelId);
       
       res.json({ 
         success: true, 
         message: "PayHero settings updated successfully",
         channelId,
-        provider 
+        provider,
+        cardPrice 
       });
     } catch (error) {
       console.error('Error updating PayHero settings:', error);
@@ -1988,16 +2014,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const users = await storage.getAllUsers();
       
       // Search by email or full name, excluding the current user making the request
+      // Use more flexible search logic to handle case sensitivity and partial matches
       const filteredUsers = users
         .filter(user => {
-          const lowerQuery = searchQuery.toLowerCase();
-          const fullName = user.fullName?.toLowerCase() || '';
-          const email = user.email?.toLowerCase() || '';
+          const query = searchQuery.toLowerCase().trim();
+          const fullName = (user.fullName || '').toLowerCase().trim();
+          const email = (user.email || '').toLowerCase().trim();
           
-          return (
-            (fullName.includes(lowerQuery) || email.includes(lowerQuery)) &&
-            user.id !== req.session?.userId // Exclude current user
-          );
+          // Check for exact email match first, then partial matches
+          const emailMatch = email === query || email.includes(query);
+          const nameMatch = fullName.includes(query) || 
+                           fullName.split(' ').some(part => part.startsWith(query));
+          
+          return (emailMatch || nameMatch) && user.id !== req.session?.userId;
         })
         .slice(0, 10) // Limit to 10 results
         .map(user => ({
@@ -2007,6 +2036,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           phone: user.phone
         }));
       
+      console.log(`User search for "${searchQuery}": found ${filteredUsers.length} users`);
       res.json({ users: filteredUsers });
     } catch (error) {
       console.error('User search error:', error);
@@ -2101,6 +2131,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Transfer error:', error);
       res.status(500).json({ message: "Error processing transfer" });
+    }
+  });
+
+  // Notification endpoints
+  app.get("/api/notifications/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      // Get user-specific notifications and global notifications
+      const userNotifications = await storage.getNotificationsByUserId(userId);
+      const globalNotifications = await storage.getGlobalNotifications();
+      
+      // Combine and sort by created date
+      const allNotifications = [...userNotifications, ...globalNotifications]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      res.json({ notifications: allNotifications });
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      res.status(500).json({ message: "Error fetching notifications" });
+    }
+  });
+
+  app.post("/api/notifications/:id/read", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.markNotificationAsRead(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      res.status(500).json({ message: "Error updating notification" });
+    }
+  });
+
+  // Admin notification broadcast
+  app.post("/api/admin/broadcast-notification", async (req, res) => {
+    try {
+      const { title, message, type, actionUrl, expiresIn } = req.body;
+      
+      if (!title || !message) {
+        return res.status(400).json({ message: "Title and message are required" });
+      }
+      
+      const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 60 * 1000) : null;
+      
+      const notification = await storage.createNotification({
+        title,
+        message,
+        type: type || "info",
+        isGlobal: true,
+        actionUrl,
+        expiresAt
+      });
+      
+      res.json({ 
+        success: true, 
+        notification,
+        message: "Notification broadcast successfully" 
+      });
+    } catch (error) {
+      console.error('Error broadcasting notification:', error);
+      res.status(500).json({ message: "Error broadcasting notification" });
+    }
+  });
+
+  app.get("/api/admin/notifications", async (req, res) => {
+    try {
+      const globalNotifications = await storage.getGlobalNotifications();
+      res.json({ notifications: globalNotifications });
+    } catch (error) {
+      console.error('Error fetching admin notifications:', error);
+      res.status(500).json({ message: "Error fetching notifications" });
     }
   });
 

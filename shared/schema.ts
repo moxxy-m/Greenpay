@@ -107,6 +107,21 @@ export const paymentRequests = pgTable("payment_requests", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Notifications table for system-wide notifications
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").default("info"), // info, success, warning, error
+  isGlobal: boolean("is_global").default(false), // true for admin broadcasts
+  userId: varchar("user_id").references(() => users.id), // null for global notifications
+  isRead: boolean("is_read").default(false),
+  actionUrl: text("action_url"),
+  metadata: jsonb("metadata"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   isEmailVerified: true,
@@ -149,6 +164,11 @@ export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).om
   createdAt: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type KycDocument = typeof kycDocuments.$inferSelect;
@@ -161,6 +181,8 @@ export type Recipient = typeof recipients.$inferSelect;
 export type InsertRecipient = z.infer<typeof insertRecipientSchema>;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
 export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 
 // Admin schema
 export const admins = pgTable("admins", {

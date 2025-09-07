@@ -11,6 +11,8 @@ import {
   type InsertPaymentRequest,
   type Recipient,
   type InsertRecipient,
+  type Notification,
+  type InsertNotification,
   type Admin,
   type InsertAdmin,
   type AdminLog,
@@ -23,6 +25,7 @@ import {
   transactions,
   paymentRequests,
   recipients,
+  notifications,
   admins,
   adminLogs,
   systemSettings,
@@ -103,6 +106,13 @@ export interface IStorage {
   getUsersCount(): Promise<number>;
   getTransactionsCount(): Promise<number>;
   getTotalVolume(): Promise<{ volume: number; revenue: number }>;
+  
+  // Notification operations
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getNotificationsByUserId(userId: string): Promise<Notification[]>;
+  getGlobalNotifications(): Promise<Notification[]>;
+  markNotificationAsRead(id: string): Promise<void>;
+  deleteNotification(id: string): Promise<void>;
   
   // System settings
   getSystemSetting(category: string, key: string): Promise<SystemSetting | undefined>;
