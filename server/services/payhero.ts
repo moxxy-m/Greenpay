@@ -24,23 +24,30 @@ export interface PayHeroCallbackResponse {
 }
 
 export class PayHeroService {
-  private authToken: string;
+  private username: string;
+  private password: string;
   private channelId: number;
   private baseUrl = 'https://backend.payhero.co.ke/api/v2';
 
   constructor() {
-    const authToken = process.env.PAYHERO_AUTH_TOKEN;
+    const username = process.env.PAYHERO_USERNAME;
+    const password = process.env.PAYHERO_PASSWORD;
     const channelId = process.env.PAYHERO_CHANNEL_ID;
     
-    if (!authToken) {
-      throw new Error('PayHero auth token not provided. Please set PAYHERO_AUTH_TOKEN environment variable.');
+    if (!username) {
+      throw new Error('PayHero username not provided. Please set PAYHERO_USERNAME environment variable.');
+    }
+    
+    if (!password) {
+      throw new Error('PayHero password not provided. Please set PAYHERO_PASSWORD environment variable.');
     }
     
     if (!channelId) {
       throw new Error('PayHero channel ID not provided. Please set PAYHERO_CHANNEL_ID environment variable.');
     }
     
-    this.authToken = authToken;
+    this.username = username;
+    this.password = password;
     this.channelId = parseInt(channelId);
   }
 
@@ -66,12 +73,15 @@ export class PayHeroService {
     try {
       const url = `${this.baseUrl}/payments`;
       
-      // Clean phone number - remove + and ensure it starts with 254
+      // Format phone number to 07xxx format as required by PayHero
       let cleanPhone = phoneNumber.replace(/\+/g, '').replace(/\s/g, '');
-      if (cleanPhone.startsWith('0')) {
-        cleanPhone = '254' + cleanPhone.substring(1);
-      } else if (!cleanPhone.startsWith('254')) {
-        cleanPhone = '254' + cleanPhone;
+      if (cleanPhone.startsWith('254')) {
+        cleanPhone = '0' + cleanPhone.substring(3);
+      } else if (!cleanPhone.startsWith('07')) {
+        // Assume it's missing the 0 prefix
+        if (cleanPhone.startsWith('7')) {
+          cleanPhone = '0' + cleanPhone;
+        }
       }
 
       const payload = {
@@ -84,6 +94,10 @@ export class PayHeroService {
         callback_url: callbackUrl
       };
 
+      // Create proper Basic Auth header
+      const credentials = Buffer.from(`${this.username}:${this.password}`).toString('base64');
+      const authHeader = `Basic ${credentials}`;
+
       console.log('PayHero payment request:', { 
         amount: payload.amount, 
         phone: payload.phone_number, 
@@ -91,36 +105,6 @@ export class PayHeroService {
         channel_id: payload.channel_id,
         url: url
       });
-      
-      // Try different auth header formats to troubleshoot
-      let authHeader;
-      let debugInfo = {
-        tokenExists: !!this.authToken,
-        originalLength: this.authToken.length,
-        originalPrefix: this.authToken.substring(0, 15) + '...',
-        channelId: this.channelId,
-        attempts: []
-      };
-
-      // If token appears to start with something other than expected base64
-      if (this.authToken.startsWith('MBasic') || this.authToken.includes('Basic')) {
-        // Extract everything after any "Basic" occurrence
-        const parts = this.authToken.split('Basic');
-        if (parts.length > 1) {
-          const cleanToken = parts[parts.length - 1].trim();
-          authHeader = `Basic ${cleanToken}`;
-          debugInfo.attempts.push(`Extracted after Basic: ${cleanToken.substring(0, 10)}...`);
-        } else {
-          authHeader = this.authToken;
-          debugInfo.attempts.push(`Used as-is: ${this.authToken.substring(0, 15)}...`);
-        }
-      } else {
-        // Assume it's a clean base64 token
-        authHeader = `Basic ${this.authToken}`;
-        debugInfo.attempts.push(`Added Basic prefix: Basic ${this.authToken.substring(0, 10)}...`);
-      }
-      
-      console.log('Auth token troubleshooting:', debugInfo);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -170,19 +154,57 @@ export class PayHeroService {
   }
 
   /**
-   * Verify payment status (polling method since PayHero doesn't have a direct verify endpoint)
-   * In practice, you would track payment status via callbacks
+   * Check transaction status using PayHero's transaction-status endpoint
    */
-  async verifyPayment(checkoutRequestId: string): Promise<{ success: boolean; data?: any; message?: string }> {
-    // PayHero doesn't provide a direct verification endpoint like Paystack
-    // Payment verification is handled via callbacks
-    // This method is kept for compatibility but returns a warning
-    console.warn('PayHero verification should be handled via callbacks. CheckoutRequestID:', checkoutRequestId);
-    
-    return {
-      success: false,
-      message: 'PayHero verification handled via callbacks only'
-    };
+  async checkTransactionStatus(reference: string): Promise<{ success: boolean; status: string; data?: any; message?: string }> {
+    try {
+      const url = `${this.baseUrl}/transaction-status?reference=${reference}`;
+      
+      // Create proper Basic Auth header
+      const credentials = Buffer.from(`${this.username}:${this.password}`).toString('base64');
+      const authHeader = `Basic ${credentials}`;
+
+      console.log('Checking PayHero transaction status:', { reference, url });
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': authHeader
+        }
+      });
+
+      const data = await response.json() as any;
+      
+      console.log('PayHero transaction status response:', { 
+        httpStatus: response.status,
+        reference,
+        status: data.status,
+        success: data.success
+      });
+      
+      if (!response.ok) {
+        console.error('PayHero transaction status HTTP error:', response.status, data);
+        return {
+          success: false,
+          status: 'ERROR',
+          message: data.message || 'Failed to check transaction status'
+        };
+      }
+      
+      return {
+        success: true,
+        status: data.status || 'UNKNOWN',
+        data: data,
+        message: data.message
+      };
+    } catch (error) {
+      console.error('PayHero transaction status check error:', error);
+      return {
+        success: false,
+        status: 'ERROR',
+        message: 'Failed to check transaction status'
+      };
+    }
   }
 
   /**
