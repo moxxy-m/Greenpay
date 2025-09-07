@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,6 +34,26 @@ export default function WithdrawPage() {
   const [selectedMethod, setSelectedMethod] = useState<string>("");
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Get transactions for real-time balance calculation
+  const { data: transactionData } = useQuery({
+    queryKey: ["/api/transactions", user?.id],
+    enabled: !!user?.id,
+  });
+
+  const transactions = (transactionData as any)?.transactions || [];
+  
+  // Real-time balance calculation (same as dashboard and send-money)
+  const realTimeBalance = transactions.reduce((balance: number, txn: any) => {
+    if (txn.status === 'completed') {
+      if (txn.type === 'receive' || txn.type === 'deposit') {
+        return balance + parseFloat(txn.amount);
+      } else if (txn.type === 'send' || txn.type === 'card_purchase') {
+        return balance - parseFloat(txn.amount) - parseFloat(txn.fee || '0');
+      }
+    }
+    return balance;
+  }, parseFloat(user?.balance || '0'));
 
   const form = useForm<WithdrawForm>({
     resolver: zodResolver(withdrawSchema),
@@ -161,8 +181,8 @@ export default function WithdrawPage() {
         >
           <div className="text-center">
             <p className="text-sm text-muted-foreground">Available for Withdrawal</p>
-            <p className="text-2xl font-bold text-primary" data-testid="text-available-balance">${user?.balance || '0.00'}</p>
-            <p className="text-xs text-muted-foreground mt-1">Virtual Card Balance</p>
+            <p className="text-2xl font-bold text-primary" data-testid="text-available-balance">${realTimeBalance.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground mt-1">Real-time Balance</p>
           </div>
         </motion.div>
 
