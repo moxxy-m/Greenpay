@@ -30,6 +30,7 @@ import { PWAInstallPrompt } from "@/components/pwa-install";
 import PaymentCallbackPage from "@/pages/payment-callback";
 import PaymentSuccessPage from "@/pages/payment-success";
 import PaymentFailedPage from "@/pages/payment-failed";
+import PaymentProcessingPage from "@/pages/payment-processing";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard-new";
 
@@ -55,6 +56,7 @@ function Router() {
       <Route path="/payment-callback" component={PaymentCallbackPage} />
       <Route path="/payment-success" component={PaymentSuccessPage} />
       <Route path="/payment-failed" component={PaymentFailedPage} />
+      <Route path="/payment-processing" component={PaymentProcessingPage} />
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/admin-dashboard" component={AdminDashboard} />
       <Route path="/admin/login" component={AdminLogin} />

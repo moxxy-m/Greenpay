@@ -282,8 +282,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Converting $${usdAmount} USD to ${kesAmount} KES for card purchase`);
 
-      // Initialize payment with PayHero M-Pesa STK Push
-      const callbackUrl = `${req.protocol}://${req.get('host')}/api/payhero-callback?reference=${reference}&type=virtual-card`;
+      // Initialize payment with PayHero M-Pesa STK Push  
+      const callbackUrl = `${req.protocol}://${req.get('host')}/payment-processing?reference=${reference}&type=virtual-card`;
       
       const paymentData = await payHeroService.initiateMpesaPayment(
         kesAmount, // Amount in KES
@@ -1898,6 +1898,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error retrieving user:", error);
       res.status(500).json({ error: "Failed to retrieve user data" });
+    }
+  });
+
+  // PayHero transaction status endpoint
+  app.get("/api/transaction-status/:reference", async (req, res) => {
+    try {
+      const { reference } = req.params;
+      
+      if (!reference) {
+        return res.status(400).json({ message: "Transaction reference is required" });
+      }
+
+      console.log('Checking transaction status for reference:', reference);
+      
+      const statusResult = await payHeroService.checkTransactionStatus(reference);
+      
+      res.json({
+        success: statusResult.success,
+        status: statusResult.status,
+        data: statusResult.data,
+        message: statusResult.message
+      });
+    } catch (error) {
+      console.error('Transaction status check error:', error);
+      res.status(500).json({ message: "Error checking transaction status" });
     }
   });
 
