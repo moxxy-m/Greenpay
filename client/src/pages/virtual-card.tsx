@@ -49,45 +49,10 @@ export default function VirtualCardPage() {
           description: data.message || "Check your phone and enter your M-Pesa PIN to complete the payment.",
         });
         
-        // Start polling for payment completion
-        let pollCount = 0;
-        const maxPolls = 60; // Poll for 5 minutes max (5 second intervals)
-        
-        const pollPayment = setInterval(async () => {
-          pollCount++;
-          
-          try {
-            // Check if card was created (indicating successful payment)
-            queryClient.invalidateQueries({ queryKey: ["/api/virtual-card", user?.id] });
-            const cardQuery = await queryClient.fetchQuery({
-              queryKey: ["/api/virtual-card", user?.id],
-            });
-            
-            if ((cardQuery as any)?.card) {
-              // Payment successful - card was created
-              clearInterval(pollPayment);
-              queryClient.invalidateQueries({ queryKey: ["/api/transactions", user?.id] });
-              toast({
-                title: "Card Purchase Successful!",
-                description: "Your virtual card is now active and ready to use.",
-              });
-              return;
-            }
-            
-            // Stop polling after max attempts
-            if (pollCount >= maxPolls) {
-              clearInterval(pollPayment);
-              toast({
-                title: "Payment Status Unknown",
-                description: "We're still processing your payment. Please check back in a few minutes or contact support if you completed the payment.",
-                variant: "destructive",
-              });
-            }
-          } catch (error) {
-            // Continue polling on error
-            console.log('Payment polling error:', error);
-          }
-        }, 5000); // Poll every 5 seconds
+        // Redirect to processing page for status tracking
+        setTimeout(() => {
+          setLocation(`/payment-processing?reference=${data.reference}&type=virtual-card`);
+        }, 2000); // Brief delay to show success message
       } else {
         throw new Error(data.message || "Unable to initialize M-Pesa payment");
       }
