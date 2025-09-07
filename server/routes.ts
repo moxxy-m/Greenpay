@@ -2014,6 +2014,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User-to-user transfer endpoint
+  app.post("/api/transfer", async (req, res) => {
+    try {
+      const { fromUserId, toUserId, amount, currency, description } = req.body;
+      
+      if (!fromUserId || !toUserId || !amount || !currency) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const transferAmount = parseFloat(amount);
+      if (transferAmount <= 0) {
+        return res.status(400).json({ message: "Invalid transfer amount" });
+      }
+
+      // Get both users
+      const fromUser = await storage.getUserById(fromUserId);
+      const toUser = await storage.getUserById(toUserId);
+
+      if (!fromUser || !toUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Check sender's balance
+      const senderTransactions = await storage.getTransactions(fromUserId);
+      const senderBalance = senderTransactions.reduce((balance, txn) => {
+        if (txn.status === 'completed') {
+          if (txn.type === 'receive' || txn.type === 'deposit') {
+            return balance + parseFloat(txn.amount);
+          } else if (txn.type === 'send' || txn.type === 'card_purchase') {
+            return balance - parseFloat(txn.amount) - parseFloat(txn.fee || '0');
+          }
+        }
+        return balance;
+      }, parseFloat(fromUser.balance || '0'));
+
+      if (senderBalance < transferAmount) {
+        return res.status(400).json({ message: "Insufficient balance" });
+      }
+
+      // Create transfer transactions
+      const now = new Date().toISOString();
+      const transferId = generateId();
+
+      // Sender transaction (debit)
+      const senderTransaction = {
+        id: generateId(),
+        userId: fromUserId,
+        type: 'send' as const,
+        amount: amount,
+        currency: currency,
+        status: 'completed' as const,
+        description: description || `Transfer to ${toUser.fullName}`,
+        recipient: toUser.fullName,
+        recipientEmail: toUser.email,
+        transferId: transferId,
+        createdAt: now,
+        fee: '0' // Free transfers between GreenPay users
+      };
+
+      // Recipient transaction (credit)
+      const recipientTransaction = {
+        id: generateId(),
+        userId: toUserId,
+        type: 'receive' as const,
+        amount: amount,
+        currency: currency,
+        status: 'completed' as const,
+        description: description || `Transfer from ${fromUser.fullName}`,
+        sender: fromUser.fullName,
+        senderEmail: fromUser.email,
+        transferId: transferId,
+        createdAt: now,
+        fee: '0'
+      };
+
+      // Save both transactions
+      await storage.createTransaction(senderTransaction);
+      await storage.createTransaction(recipientTransaction);
+
+      res.json({ 
+        success: true, 
+        transferId,
+        message: "Transfer completed successfully" 
+      });
+    } catch (error) {
+      console.error('Transfer error:', error);
+      res.status(500).json({ message: "Error processing transfer" });
+    }
+  });
+
   // Admin login as user endpoint
   app.post("/api/admin/login-as-user", async (req, res) => {
     try {
