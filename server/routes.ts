@@ -1976,6 +1976,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User search endpoint for transfers
+  app.get("/api/users/search", async (req, res) => {
+    try {
+      const { q: searchQuery } = req.query;
+      
+      if (!searchQuery || typeof searchQuery !== 'string' || searchQuery.length < 2) {
+        return res.json({ users: [] });
+      }
+      
+      const users = await storage.getAllUsers();
+      
+      // Search by email or full name, excluding the current user making the request
+      const filteredUsers = users
+        .filter(user => {
+          const lowerQuery = searchQuery.toLowerCase();
+          const fullName = user.fullName?.toLowerCase() || '';
+          const email = user.email?.toLowerCase() || '';
+          
+          return (
+            (fullName.includes(lowerQuery) || email.includes(lowerQuery)) &&
+            user.id !== req.session?.userId // Exclude current user
+          );
+        })
+        .slice(0, 10) // Limit to 10 results
+        .map(user => ({
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          phone: user.phone
+        }));
+      
+      res.json({ users: filteredUsers });
+    } catch (error) {
+      console.error('User search error:', error);
+      res.status(500).json({ message: "Error searching users" });
+    }
+  });
+
   // Admin login as user endpoint
   app.post("/api/admin/login-as-user", async (req, res) => {
     try {
