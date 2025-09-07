@@ -42,7 +42,8 @@ import {
   Shield,
   Mail,
   Phone,
-  Calendar
+  Calendar,
+  LogIn
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -83,6 +84,36 @@ export default function EnhancedUserManagement() {
   const [transactionDetails, setTransactionDetails] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const loginAsUserMutation = useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      const response = await apiRequest("POST", "/api/admin/login-as-user", { userId });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        // Store user session data
+        localStorage.setItem("userAuth", JSON.stringify(data.user));
+        
+        toast({
+          title: "Success",
+          description: `Logged in as ${data.user.fullName}. Redirecting to dashboard...`,
+        });
+        
+        // Redirect to user dashboard in new tab
+        setTimeout(() => {
+          window.open('/dashboard', '_blank');
+        }, 1500);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Login Failed",
+        description: error.message || "Failed to login as user",
+        variant: "destructive",
+      });
+    },
+  });
 
   const { data: usersData, isLoading, error } = useQuery<UsersResponse>({
     queryKey: ["/api/admin/users", { search, status, page }],
@@ -365,6 +396,17 @@ export default function EnhancedUserManagement() {
                             )}
                           </DialogContent>
                         </Dialog>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => loginAsUserMutation.mutate({ userId: user.id })}
+                          disabled={loginAsUserMutation.isPending}
+                          title="Login as this user"
+                          data-testid={`button-login-as-user-${user.id}`}
+                        >
+                          <LogIn className="w-4 h-4 text-blue-600" />
+                        </Button>
 
                         <Button
                           variant="ghost"

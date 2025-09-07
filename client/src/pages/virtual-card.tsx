@@ -21,8 +21,27 @@ export default function VirtualCardPage() {
     enabled: !!user?.id,
   });
 
+  // Get transactions for real-time balance calculation
+  const { data: transactionData } = useQuery({
+    queryKey: ["/api/transactions", user?.id],
+    enabled: !!user?.id,
+  });
+
   const card = (cardData as any)?.card;
   const hasCard = user?.hasVirtualCard || !!card;
+  const transactions = (transactionData as any)?.transactions || [];
+  
+  // Real-time balance calculation (same as dashboard)
+  const realTimeBalance = transactions.reduce((balance: number, txn: any) => {
+    if (txn.status === 'completed') {
+      if (txn.type === 'receive' || txn.type === 'deposit') {
+        return balance + parseFloat(txn.amount);
+      } else if (txn.type === 'send' || txn.type === 'card_purchase') {
+        return balance - parseFloat(txn.amount) - parseFloat(txn.fee || '0');
+      }
+    }
+    return balance;
+  }, parseFloat(user?.balance || '0'));
 
   // Show discount popup when page loads (only if user doesn't have a card)
   useEffect(() => {
@@ -307,7 +326,7 @@ export default function VirtualCardPage() {
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-1">Available Balance</p>
             <p className="text-3xl font-bold text-primary" data-testid="text-card-balance">
-              ${user?.balance || "0.00"}
+              ${realTimeBalance.toFixed(2)}
             </p>
             <p className="text-sm text-muted-foreground">Last updated: Just now</p>
           </div>
