@@ -85,20 +85,9 @@ export default function BannedPage() {
   }
 
   if (!user?.user?.isBanned) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <Shield className="w-12 h-12 text-green-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Account Active</h2>
-            <p className="text-gray-600 mb-4">Your account is in good standing.</p>
-            <Link href="/dashboard">
-              <Button className="w-full">Go to Dashboard</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    // If user is not banned, redirect them to dashboard immediately
+    setLocation("/dashboard");
+    return null;
   }
 
   return (
@@ -171,7 +160,7 @@ export default function BannedPage() {
               <ul className="text-gray-700 text-sm space-y-1">
                 <li>• All your transaction history will be permanently deleted</li>
                 <li>• Your virtual card will be cancelled and cannot be recovered</li>
-                <li>• Any remaining balance will be forfeited</li>
+                <li>• Any remaining funds will be returned to the original senders</li>
                 <li>• This action cannot be undone</li>
                 <li>• You will not be able to create a new account with the same email or phone</li>
               </ul>
