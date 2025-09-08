@@ -43,7 +43,7 @@ import PayHeroSettings from "@/components/admin/payhero-settings";
 import WithdrawalManagement from "@/components/admin/withdrawal-management";
 import NotificationManagement from "@/components/admin/notification-management";
 import LogsManagement from "@/components/admin/logs-management";
-import StatementManagement from "@/components/admin/statement-management";
+import { SimpleStatementManagement } from "@/components/admin/simple-statement-management";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -128,7 +128,7 @@ export default function AdminDashboard() {
       case "logs":
         return <LogsManagement />;
       case "statements":
-        return <StatementManagement />;
+        return <SimpleStatementManagement />;
       case "payhero":
         return <PayHeroSettings />;
       case "analytics":

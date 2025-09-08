@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Notifications from "@/components/notifications";
-import StatementDownload from "@/components/statement-download";
+import { SimpleStatementDownload } from "@/components/simple-statement-download";
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
@@ -328,7 +328,7 @@ export default function DashboardPage() {
           transition={{ delay: 0.25 }}
           className="mt-6"
         >
-          <StatementDownload />
+          <SimpleStatementDownload />
         </motion.div>
 
         {/* Recent Transactions */}
