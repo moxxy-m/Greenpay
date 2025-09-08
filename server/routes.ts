@@ -2065,28 +2065,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
         case "activate":
         case "freeze":
-        case "inactive":
-          // Find and update existing card
+          // Find and update existing card for reactivation/freezing
           const card = await storage.getVirtualCardByUserId(id);
           if (!card) {
             return res.status(404).json({ error: "Virtual card not found" });
           }
           
-          let newStatus: string;
-          switch (action) {
-            case "activate":
-              newStatus = "active";
-              break;
-            case "freeze":
-              newStatus = "frozen";
-              break;
-            case "inactive":
-              newStatus = "inactive";
-              break;
-            default:
-              newStatus = "frozen";
+          // Don't allow reactivation of inactive cards - they need a new purchase
+          if (card.status === "inactive" && action === "activate") {
+            return res.status(400).json({ 
+              error: "Cannot reactivate an inactive card. User must purchase a new card.",
+              requiresPurchase: true
+            });
           }
           
+          const newStatus = action === "activate" ? "active" : "frozen";
           result = await storage.updateVirtualCard(card.id, { status: newStatus });
           
           // Log admin action
@@ -2094,6 +2087,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             adminId: req.session.admin?.id || null,
             action: `virtual_card_${action}`,
             details: `Admin ${action}d virtual card for user: ${user.email}`,
+            targetId: id,
+          });
+          break;
+          
+        case "inactive":
+          // Find and deactivate card completely
+          const inactiveCard = await storage.getVirtualCardByUserId(id);
+          if (!inactiveCard) {
+            return res.status(404).json({ error: "Virtual card not found" });
+          }
+          
+          // Set card to inactive and remove from user
+          result = await storage.updateVirtualCard(inactiveCard.id, { status: "inactive" });
+          await storage.updateUser(id, { hasVirtualCard: false });
+          
+          // Log admin action
+          await storage.createAdminLog({
+            adminId: req.session.admin?.id || null,
+            action: "virtual_card_deactivate",
+            details: `Admin permanently deactivated virtual card for user: ${user.email}. User must purchase new card to reactivate.`,
             targetId: id,
           });
           break;

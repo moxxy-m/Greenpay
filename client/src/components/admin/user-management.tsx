@@ -533,18 +533,34 @@ function UserDetailsDialog({ user }: { user: User }) {
       });
 
       if (response.ok) {
+        const successMessages: Record<string, string> = {
+          activate: "activated",
+          freeze: "frozen",
+          inactive: "permanently deactivated"
+        };
+        
         toast({
           title: "Card Updated",
-          description: `Successfully ${action}d virtual card for ${user.fullName}`,
+          description: `Successfully ${successMessages[action] || action}d virtual card for ${user.fullName}`,
         });
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update virtual card",
-        variant: "destructive",
-      });
+    } catch (error: any) {
+      const errorData = await error.response?.json?.() || {};
+      
+      if (errorData.requiresPurchase) {
+        toast({
+          title: "Cannot Reactivate",
+          description: "This card is inactive. User must purchase a new card to reactivate.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update virtual card",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -889,22 +905,31 @@ function UserDetailsDialog({ user }: { user: User }) {
               </Button>
             ) : (
               <>
+                {user.cardStatus === "inactive" ? (
+                  <div className="text-red-600 text-sm mb-2">
+                    Card is inactive. User must purchase a new card to reactivate.
+                  </div>
+                ) : null}
+                
                 <Button
                   onClick={() => onUpdateCard(user.cardStatus === "active" ? "freeze" : "activate")}
-                  disabled={isLoading}
+                  disabled={isLoading || user.cardStatus === "inactive"}
                   variant={user.cardStatus === "active" ? "destructive" : "default"}
                   data-testid="button-toggle-card"
                 >
                   {user.cardStatus === "active" ? "Freeze Card" : "Activate Card"}
                 </Button>
-                <Button
-                  onClick={() => onUpdateCard("inactive")}
-                  disabled={isLoading}
-                  variant="outline"
-                  data-testid="button-set-card-inactive"
-                >
-                  Set Inactive
-                </Button>
+                
+                {user.cardStatus !== "inactive" && (
+                  <Button
+                    onClick={() => onUpdateCard("inactive")}
+                    disabled={isLoading}
+                    variant="destructive"
+                    data-testid="button-set-card-inactive"
+                  >
+                    Set Inactive
+                  </Button>
+                )}
               </>
             )}
           </div>
