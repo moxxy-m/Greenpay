@@ -36,7 +36,9 @@ import {
   CreditCard,
   FileText,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  Ban,
+  ShieldOff
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +55,9 @@ interface User {
   isPhoneVerified: boolean;
   hasVirtualCard: boolean;
   balance: string;
+  isBanned?: boolean;
+  banReason?: string;
+  bannedAt?: string;
   createdAt: string;
 }
 
@@ -68,6 +73,8 @@ export default function UserManagement() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const [banReason, setBanReason] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -85,51 +92,54 @@ export default function UserManagement() {
     },
   });
 
-  const blockUserMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const response = await apiRequest("PUT", `/api/admin/users/${userId}/block`, {});
+  const banUserMutation = useMutation({
+    mutationFn: async ({ userId, reason }: { userId: string; reason: string }) => {
+      const response = await apiRequest("POST", `/api/admin/users/${userId}/ban`, { reason });
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({
-        title: "User Blocked",
-        description: "User has been successfully blocked",
+        title: "User Banned",
+        description: "User has been successfully banned",
       });
+      setBanDialogOpen(false);
+      setBanReason("");
+      setSelectedUser(null);
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to block user",
+        description: "Failed to ban user",
         variant: "destructive",
       });
     },
   });
 
-  const unblockUserMutation = useMutation({
+  const unbanUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const response = await apiRequest("PUT", `/api/admin/users/${userId}/unblock`, {});
+      const response = await apiRequest("POST", `/api/admin/users/${userId}/unban`, {});
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({
-        title: "User Unblocked",
-        description: "User has been successfully unblocked",
+        title: "User Unbanned",
+        description: "User has been successfully unbanned",
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to unblock user",
+        description: "Failed to unban user",
         variant: "destructive",
       });
     },
   });
 
   const getUserStatusBadge = (user: User) => {
-    if (!user.isEmailVerified && !user.isPhoneVerified) {
-      return <Badge variant="destructive">Blocked</Badge>;
+    if (user.isBanned) {
+      return <Badge variant="destructive">Banned</Badge>;
     }
     if (user.kycStatus === "verified") {
       return <Badge variant="default">Verified</Badge>;
@@ -140,8 +150,14 @@ export default function UserManagement() {
     return <Badge variant="outline">Active</Badge>;
   };
 
-  const isUserBlocked = (user: User) => {
-    return !user.isEmailVerified && !user.isPhoneVerified;
+  const handleBanUser = (user: User) => {
+    setSelectedUser(user);
+    setBanDialogOpen(true);
+  };
+
+  const confirmBan = () => {
+    if (!selectedUser || !banReason.trim()) return;
+    banUserMutation.mutate({ userId: selectedUser.id, reason: banReason });
   };
 
   if (error) {
@@ -193,7 +209,7 @@ export default function UserManagement() {
                 <SelectItem value="active">Active Users</SelectItem>
                 <SelectItem value="pending">Pending KYC</SelectItem>
                 <SelectItem value="verified">Verified Users</SelectItem>
-                <SelectItem value="blocked">Blocked Users</SelectItem>
+                <SelectItem value="banned">Banned Users</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -284,25 +300,24 @@ export default function UserManagement() {
                             </DialogContent>
                           </Dialog>
 
-                          {isUserBlocked(user) ? (
+                          {user.isBanned ? (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => unblockUserMutation.mutate(user.id)}
-                              disabled={unblockUserMutation.isPending}
-                              data-testid={`button-unblock-user-${user.id}`}
+                              onClick={() => unbanUserMutation.mutate(user.id)}
+                              disabled={unbanUserMutation.isPending}
+                              data-testid={`button-unban-user-${user.id}`}
                             >
-                              <UserCheck className="w-4 h-4 text-green-600" />
+                              <ShieldOff className="w-4 h-4 text-green-600" />
                             </Button>
                           ) : (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => blockUserMutation.mutate(user.id)}
-                              disabled={blockUserMutation.isPending}
-                              data-testid={`button-block-user-${user.id}`}
+                              onClick={() => handleBanUser(user)}
+                              data-testid={`button-ban-user-${user.id}`}
                             >
-                              <UserX className="w-4 h-4 text-red-600" />
+                              <Ban className="w-4 h-4 text-red-600" />
                             </Button>
                           )}
                         </div>
@@ -344,6 +359,60 @@ export default function UserManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Ban User Dialog */}
+      <Dialog open={banDialogOpen} onOpenChange={setBanDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ban User</DialogTitle>
+            <DialogDescription>
+              This will ban the user from accessing their account. They will see the ban reason and have the option to delete their account.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">User Details</h4>
+                <div className="space-y-1 text-sm">
+                  <p><strong>Name:</strong> {selectedUser.fullName}</p>
+                  <p><strong>Email:</strong> {selectedUser.email}</p>
+                  <p><strong>Phone:</strong> {selectedUser.phone}</p>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="ban-reason" className="block text-sm font-medium mb-1">
+                  Ban Reason (Required)
+                </label>
+                <textarea
+                  id="ban-reason"
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  placeholder="Explain why this user is being banned..."
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  rows={3}
+                  data-testid="ban-reason-input"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setBanDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmBan}
+              disabled={banUserMutation.isPending || !banReason.trim()}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              data-testid="confirm-ban-button"
+            >
+              {banUserMutation.isPending ? 'Banning...' : 'Ban User'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

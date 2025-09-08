@@ -2324,6 +2324,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User ban management routes
+  app.post("/api/admin/users/:id/ban", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      
+      if (!reason || !reason.trim()) {
+        return res.status(400).json({ message: "Ban reason is required" });
+      }
+
+      // Get admin ID from session (assuming admin is logged in)
+      const adminId = req.session?.admin?.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Admin authentication required" });
+      }
+
+      const user = await storage.banUser(id, reason.trim(), adminId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({ message: "User banned successfully", user });
+    } catch (error) {
+      console.error('Error banning user:', error);
+      res.status(500).json({ message: "Error banning user" });
+    }
+  });
+
+  app.post("/api/admin/users/:id/unban", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const user = await storage.unbanUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({ message: "User unbanned successfully", user });
+    } catch (error) {
+      console.error('Error unbanning user:', error);
+      res.status(500).json({ message: "Error unbanning user" });
+    }
+  });
+
+  // Account deletion route for banned users
+  app.post("/api/auth/delete-account", async (req, res) => {
+    try {
+      const { userId, termsAccepted } = req.body;
+      
+      if (!termsAccepted) {
+        return res.status(400).json({ message: "Terms must be accepted to delete account" });
+      }
+
+      // Verify user is banned
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (!user.isBanned) {
+        return res.status(403).json({ message: "Account deletion is only allowed for banned users" });
+      }
+
+      const deleted = await storage.deleteUser(userId);
+      if (!deleted) {
+        return res.status(500).json({ message: "Failed to delete account" });
+      }
+
+      // Clear session if exists
+      req.session.destroy(() => {});
+
+      res.json({ message: "Account deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      res.status(500).json({ message: "Error deleting account" });
+    }
+  });
+
   // System logs endpoints
   app.get("/api/admin/system-logs", async (req, res) => {
     try {
