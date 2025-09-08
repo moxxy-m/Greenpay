@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 
 export default function SplashPage() {
   const [, setLocation] = useLocation();

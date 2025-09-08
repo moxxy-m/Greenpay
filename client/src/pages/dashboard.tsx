@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -318,30 +318,6 @@ export default function DashboardPage() {
             <p className="font-semibold">Support</p>
             <p className="text-xs text-muted-foreground">24/7 help</p>
           </motion.button>
-        </motion.div>
-
-        {/* Statement Download - temporarily disabled */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="mt-6"
-        >
-          <div className="bg-card p-4 rounded-xl border border-border text-center">
-            <h3 className="font-semibold mb-2">Download Statements</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Generate PDF statements of your transactions with date filtering options.
-            </p>
-            <button
-              onClick={() => {
-                // Simple download without React hooks
-                window.location.href = `/api/statements/user/${user?.id}?includePersonalInfo=true`;
-              }}
-              className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
-            >
-              Download PDF Statement
-            </button>
-          </div>
         </motion.div>
 
         {/* Recent Transactions */}

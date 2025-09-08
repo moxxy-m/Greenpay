@@ -1,6 +1,5 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { insertUserSchema, insertKycDocumentSchema, insertTransactionSchema, insertPaymentRequestSchema, insertRecipientSchema } from "@shared/schema";
 import { z } from "zod";
@@ -14,8 +13,6 @@ import { payHeroService } from "./services/payhero";
 import { twoFactorService } from "./services/2fa";
 import { biometricService } from "./services/biometric";
 import { notificationService } from "./services/notifications";
-import { logger } from "./services/logger";
-import { pdfStatementService } from "./services/pdf-statement";
 
 // Configure multer for file uploads
 const upload = multer({
@@ -43,56 +40,6 @@ const transferSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Initialize logging
-  logger.info('GreenPay server starting up', { source: 'system' });
-
-  // Request logging middleware - capture all HTTP requests
-  app.use((req, res, next) => {
-    const startTime = Date.now();
-    
-    // Capture response end to log completion
-    const originalSend = res.send;
-    res.send = function(body) {
-      const duration = Date.now() - startTime;
-      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: true });
-      
-      // Log in the same format as deployment console
-      let responseData = '';
-      if (body && typeof body === 'string') {
-        try {
-          const parsed = JSON.parse(body);
-          // Truncate long responses for readability
-          const truncated = JSON.stringify(parsed).substring(0, 100);
-          responseData = truncated.length < JSON.stringify(parsed).length ? 
-            `${truncated}...` : truncated;
-        } catch {
-          responseData = body.substring(0, 100);
-        }
-      }
-      
-      console.log(`${timestamp} [express] ${req.method} ${req.originalUrl} ${res.statusCode} in ${duration}ms :: ${responseData}`);
-      
-      // Also log to our structured logging system
-      logger.info(`${req.method} ${req.originalUrl}`, {
-        method: req.method,
-        url: req.originalUrl,
-        statusCode: res.statusCode,
-        duration: `${duration}ms`,
-        ip: req.ip,
-        userAgent: req.get('User-Agent')
-      }, { 
-        source: 'api', 
-        ip: req.ip, 
-        userAgent: req.get('User-Agent'),
-        userId: (req.session as any)?.userId 
-      });
-      
-      return originalSend.call(this, body);
-    };
-    
-    next();
-  });
-
   // Health check endpoint - must be defined early to avoid catch-all routes
   app.get("/health", (_req, res) => {
     res.status(200).json({ 
@@ -133,12 +80,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create user with hashed password (now handled in storage)
       const user = await storage.createUser(userData);
       
-      logger.info('New user registration', {
-        userId: user.id,
-        email: user.email,
-        fullName: user.fullName
-      }, { source: 'auth', ip: req.ip, userId: user.id });
-      
       // Auto-verify phone and email for smoother onboarding
       await storage.updateUser(user.id, { 
         isPhoneVerified: true, 
@@ -149,7 +90,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { password, ...userResponse } = user;
       res.json({ user: { ...userResponse, isPhoneVerified: true, isEmailVerified: true } });
     } catch (error) {
-      logger.error('User signup error', error, { source: 'auth', ip: req.ip });
+      console.error('Signup error:', error);
       res.status(400).json({ message: "Invalid user data" });
     }
   });
@@ -176,11 +117,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      logger.info('User login successful', {
-        userId: user.id,
-        email: user.email
-      }, { source: 'auth', ip: req.ip, userId: user.id, userAgent: req.get('User-Agent') });
-
       // Send security notification
       await notificationService.sendSecurityNotification(
         user.id,
@@ -198,7 +134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ user: userResponse });
       });
     } catch (error) {
-      logger.error('User login error', error, { source: 'auth', ip: req.ip });
+      console.error('Login error:', error);
       res.status(400).json({ message: "Invalid login data" });
     }
   });
@@ -967,16 +903,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }, 5000); // 5 second delay
       
-      logger.info('Send transaction initiated', {
-        transactionId: transaction.id,
-        userId,
-        amount,
-        currency,
-        targetCurrency,
-        convertedAmount,
-        fee
-      }, { source: 'payment', userId });
-
       res.json({ 
         transaction,
         convertedAmount,
@@ -984,7 +910,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Transaction initiated successfully"
       });
     } catch (error) {
-      logger.error('Send transaction error', error, { source: 'payment' });
+      console.error('Send transaction error:', error);
       res.status(400).json({ message: "Transaction failed" });
     }
   });
@@ -1037,172 +963,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ transaction });
     } catch (error) {
       res.status(500).json({ message: "Error fetching transaction status" });
-    }
-  });
-
-  // PDF Statement Generation Endpoints
-  app.get("/api/statements/user/:userId", async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { startDate, endDate, includePersonalInfo } = req.query;
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      let transactions = await storage.getTransactionsByUserId(userId);
-
-      // Filter by date range if provided
-      if (startDate) {
-        transactions = transactions.filter(t => 
-          new Date(t.createdAt) >= new Date(startDate as string)
-        );
-      }
-      if (endDate) {
-        transactions = transactions.filter(t => 
-          new Date(t.createdAt) <= new Date(endDate as string)
-        );
-      }
-
-      const pdfBuffer = await pdfStatementService.generateUserStatement(
-        user,
-        transactions,
-        {
-          startDate: startDate ? new Date(startDate as string) : undefined,
-          endDate: endDate ? new Date(endDate as string) : undefined,
-          includePersonalInfo: includePersonalInfo !== 'false'
-        }
-      );
-
-      logger.info('User statement generated', {
-        userId,
-        transactionCount: transactions.length,
-        dateRange: { startDate, endDate }
-      }, { source: 'pdf', userId });
-
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="statement-${user.fullName.replace(/\s+/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf"`,
-        'Content-Length': pdfBuffer.length
-      });
-
-      res.send(pdfBuffer);
-    } catch (error) {
-      logger.error('User statement generation error', error, { source: 'pdf' });
-      res.status(500).json({ message: "Error generating statement" });
-    }
-  });
-
-  app.get("/api/admin/statements/all", async (req, res) => {
-    try {
-      const { startDate, endDate, adminName } = req.query;
-
-      // Get all transactions for admin report
-      const allUsers = await storage.getAllUsers();
-      let allTransactions: any[] = [];
-
-      for (const user of allUsers) {
-        const userTransactions = await storage.getTransactionsByUserId(user.id);
-        allTransactions = allTransactions.concat(userTransactions);
-      }
-
-      // Sort by date descending
-      allTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      // Filter by date range if provided
-      if (startDate) {
-        allTransactions = allTransactions.filter(t => 
-          new Date(t.createdAt) >= new Date(startDate as string)
-        );
-      }
-      if (endDate) {
-        allTransactions = allTransactions.filter(t => 
-          new Date(t.createdAt) <= new Date(endDate as string)
-        );
-      }
-
-      const pdfBuffer = await pdfStatementService.generateAdminStatement(
-        allTransactions,
-        {
-          startDate: startDate ? new Date(startDate as string) : undefined,
-          endDate: endDate ? new Date(endDate as string) : undefined,
-          adminName: adminName as string,
-          title: 'Administrative Transaction Report'
-        }
-      );
-
-      logger.info('Admin statement generated', {
-        transactionCount: allTransactions.length,
-        dateRange: { startDate, endDate },
-        adminName
-      }, { source: 'pdf' });
-
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="admin-report-${new Date().toISOString().split('T')[0]}.pdf"`,
-        'Content-Length': pdfBuffer.length
-      });
-
-      res.send(pdfBuffer);
-    } catch (error) {
-      logger.error('Admin statement generation error', error, { source: 'pdf' });
-      res.status(500).json({ message: "Error generating admin report" });
-    }
-  });
-
-  app.get("/api/admin/statements/user/:userId", async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { startDate, endDate, adminName } = req.query;
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      let transactions = await storage.getTransactionsByUserId(userId);
-
-      // Filter by date range if provided
-      if (startDate) {
-        transactions = transactions.filter(t => 
-          new Date(t.createdAt) >= new Date(startDate as string)
-        );
-      }
-      if (endDate) {
-        transactions = transactions.filter(t => 
-          new Date(t.createdAt) <= new Date(endDate as string)
-        );
-      }
-
-      const pdfBuffer = await pdfStatementService.generateUserStatement(
-        user,
-        transactions,
-        {
-          startDate: startDate ? new Date(startDate as string) : undefined,
-          endDate: endDate ? new Date(endDate as string) : undefined,
-          includePersonalInfo: true,
-          title: `Admin Report for ${user.fullName}`
-        }
-      );
-
-      logger.info('Admin user statement generated', {
-        targetUserId: userId,
-        transactionCount: transactions.length,
-        dateRange: { startDate, endDate },
-        adminName
-      }, { source: 'pdf' });
-
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="user-${user.fullName.replace(/\s+/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf"`,
-        'Content-Length': pdfBuffer.length
-      });
-
-      res.send(pdfBuffer);
-    } catch (error) {
-      logger.error('Admin user statement generation error', error, { source: 'pdf' });
-      res.status(500).json({ message: "Error generating user statement" });
     }
   });
 
@@ -1603,19 +1363,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userAgent: req.get('User-Agent') || null
       });
 
-      logger.info('Admin login successful', {
-        adminId: admin.id,
-        email: admin.email,
-        ip: req.ip
-      }, { source: 'auth', ip: req.ip, userAgent: req.get('User-Agent') });
-
       const { password: _, ...adminData } = admin;
       res.json({ 
         admin: adminData,
         message: "Login successful"
       });
     } catch (error) {
-      logger.error('Admin login error', error, { source: 'auth', ip: req.ip });
+      console.error('Admin login error:', error);
       res.status(500).json({ message: "Login failed" });
     }
   });
@@ -1805,50 +1559,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin Logs
-  // Admin System Logs Routes
-  app.get("/api/admin/system-logs", async (req, res) => {
-    try {
-      const { level, source, userId, limit, search, startDate, endDate } = req.query;
-      
-      const filters: any = {};
-      if (level) filters.level = level as string;
-      if (source) filters.source = source as string;
-      if (userId) filters.userId = userId as string;
-      if (limit) filters.limit = parseInt(limit as string);
-      if (search) filters.search = search as string;
-      if (startDate) filters.startDate = new Date(startDate as string);
-      if (endDate) filters.endDate = new Date(endDate as string);
-      
-      const logs = logger.getLogs(filters);
-      res.json({ logs });
-    } catch (error) {
-      console.error('System logs fetch error:', error);
-      res.status(500).json({ message: "Failed to fetch system logs" });
-    }
-  });
-
-  app.get("/api/admin/system-logs/stats", async (req, res) => {
-    try {
-      const stats = logger.getLogStats();
-      res.json({ stats });
-    } catch (error) {
-      console.error('System log stats error:', error);
-      res.status(500).json({ message: "Failed to fetch log statistics" });
-    }
-  });
-
-  app.post("/api/admin/system-logs/clear", async (req, res) => {
-    try {
-      logger.clearLogs();
-      logger.info('System logs cleared', { adminAction: true });
-      res.json({ message: "System logs cleared successfully" });
-    } catch (error) {
-      console.error('Clear logs error:', error);
-      res.status(500).json({ message: "Failed to clear logs" });
-    }
-  });
-
-  // Keep existing admin logs for historical admin actions
   app.get("/api/admin/logs", async (req, res) => {
     try {
       const logs = await storage.getAdminLogs();
@@ -2376,11 +2086,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create transfer transactions
       const now = new Date().toISOString();
-      const transferId = randomUUID();
+      const transferId = generateId();
 
       // Sender transaction (debit)
       const senderTransaction = {
-        id: randomUUID(),
+        id: generateId(),
         userId: fromUserId,
         type: 'send' as const,
         amount: amount,
@@ -2396,7 +2106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Recipient transaction (credit)
       const recipientTransaction = {
-        id: randomUUID(),
+        id: generateId(),
         userId: toUserId,
         type: 'receive' as const,
         amount: amount,
@@ -2718,7 +2428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description,
         fee: fee || '0.00',
         recipientDetails,
-        reference: randomUUID()
+        reference: generateId()
       });
       
       // Send notification to admins about new withdrawal request
@@ -2734,12 +2444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Withdrawal request submitted successfully. It will be processed within 1-3 business days."
       });
     } catch (error) {
-      logger.error('Withdrawal processing error', error, { 
-        source: 'payment', 
-        userId: userId,
-        amount: amount,
-        currency: currency 
-      });
+      console.error('Withdrawal error:', error);
       res.status(500).json({ message: "Error processing withdrawal request" });
     }
   });
