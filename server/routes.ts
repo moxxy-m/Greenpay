@@ -2059,8 +2059,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get both users
-      const fromUser = await storage.getUserById(fromUserId);
-      const toUser = await storage.getUserById(toUserId);
+      const fromUser = await storage.getUser(fromUserId);
+      const toUser = await storage.getUser(toUserId);
 
       if (!fromUser || !toUser) {
         return res.status(404).json({ message: "User not found" });
@@ -2175,7 +2175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get user info for each withdrawal
       const withdrawalsWithUserInfo = await Promise.all(
         withdrawals.map(async (withdrawal) => {
-          const user = await storage.getUserById(withdrawal.userId);
+          const user = await storage.getUser(withdrawal.userId);
           return {
             ...withdrawal,
             userInfo: {
@@ -2207,7 +2207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (transaction) {
         // Notify user
-        const user = await storage.getUserById(transaction.userId);
+        const user = await storage.getUser(transaction.userId);
         if (user) {
           await notificationService.sendNotification({
             title: "Withdrawal Approved",
@@ -2238,7 +2238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (transaction) {
         // Notify user
-        const user = await storage.getUserById(transaction.userId);
+        const user = await storage.getUser(transaction.userId);
         if (user) {
           await notificationService.sendNotification({
             title: "Withdrawal Rejected",
@@ -2390,7 +2390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get user
-      const user = await storage.getUserById(userId);
+      const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
