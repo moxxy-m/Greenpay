@@ -38,7 +38,7 @@ import {
   Shield,
   AlertTriangle,
   Trash2,
-  CreditCardOff
+  Ban
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -304,7 +304,7 @@ export default function UserManagement() {
                               data-testid={`button-card-action-${user.id}`}
                               title="Deactivate Card"
                             >
-                              <CreditCardOff className="w-4 h-4 text-orange-600" />
+                              <Ban className="w-4 h-4 text-orange-600" />
                             </Button>
                           )}
                           
