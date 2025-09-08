@@ -52,6 +52,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Initialize logging
+  logger.info('GreenPay server starting up', { source: 'system' });
+
   // Create default admin account if none exists
   try {
     const existingAdmin = await storage.getAdminByEmail("admin@greenpay.com");
@@ -82,6 +85,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create user with hashed password (now handled in storage)
       const user = await storage.createUser(userData);
       
+      logger.info('New user registration', {
+        userId: user.id,
+        email: user.email,
+        fullName: user.fullName
+      }, { source: 'auth', ip: req.ip, userId: user.id });
+      
       // Auto-verify phone and email for smoother onboarding
       await storage.updateUser(user.id, { 
         isPhoneVerified: true, 
@@ -92,7 +101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { password, ...userResponse } = user;
       res.json({ user: { ...userResponse, isPhoneVerified: true, isEmailVerified: true } });
     } catch (error) {
-      console.error('Signup error:', error);
+      logger.error('User signup error', error, { source: 'auth', ip: req.ip });
       res.status(400).json({ message: "Invalid user data" });
     }
   });
@@ -119,6 +128,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      logger.info('User login successful', {
+        userId: user.id,
+        email: user.email
+      }, { source: 'auth', ip: req.ip, userId: user.id, userAgent: req.get('User-Agent') });
+
       // Send security notification
       await notificationService.sendSecurityNotification(
         user.id,
@@ -136,7 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ user: userResponse });
       });
     } catch (error) {
-      console.error('Login error:', error);
+      logger.error('User login error', error, { source: 'auth', ip: req.ip });
       res.status(400).json({ message: "Invalid login data" });
     }
   });
@@ -905,6 +919,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }, 5000); // 5 second delay
       
+      logger.info('Send transaction initiated', {
+        transactionId: transaction.id,
+        userId,
+        amount,
+        currency,
+        targetCurrency,
+        convertedAmount,
+        fee
+      }, { source: 'payment', userId });
+
       res.json({ 
         transaction,
         convertedAmount,
@@ -912,7 +936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Transaction initiated successfully"
       });
     } catch (error) {
-      console.error('Send transaction error:', error);
+      logger.error('Send transaction error', error, { source: 'payment' });
       res.status(400).json({ message: "Transaction failed" });
     }
   });
@@ -1365,13 +1389,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userAgent: req.get('User-Agent') || null
       });
 
+      logger.info('Admin login successful', {
+        adminId: admin.id,
+        email: admin.email,
+        ip: req.ip
+      }, { source: 'auth', ip: req.ip, userAgent: req.get('User-Agent') });
+
       const { password: _, ...adminData } = admin;
       res.json({ 
         admin: adminData,
         message: "Login successful"
       });
     } catch (error) {
-      console.error('Admin login error:', error);
+      logger.error('Admin login error', error, { source: 'auth', ip: req.ip });
       res.status(500).json({ message: "Login failed" });
     }
   });
@@ -2490,7 +2520,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Withdrawal request submitted successfully. It will be processed within 1-3 business days."
       });
     } catch (error) {
-      console.error('Withdrawal error:', error);
+      logger.error('Withdrawal processing error', error, { 
+        source: 'payment', 
+        userId: userId,
+        amount: amount,
+        currency: currency 
+      });
       res.status(500).json({ message: "Error processing withdrawal request" });
     }
   });
