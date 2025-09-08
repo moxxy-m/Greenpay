@@ -2335,10 +2335,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get admin ID from session (assuming admin is logged in)
-      const adminId = req.session?.admin?.id || "admin-system";
+      const adminId = req.session?.admin?.id;
       console.log('Admin session check:', { session: req.session?.admin, adminId });
+      
+      if (!adminId) {
+        console.log('No admin session found, proceeding with null admin ID');
+      }
 
-      const user = await storage.banUser(id, reason.trim(), adminId);
+      const user = await storage.banUser(id, reason.trim(), adminId || null);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }

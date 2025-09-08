@@ -114,7 +114,7 @@ export interface IStorage {
   getUsersCount(): Promise<number>;
   getTransactionsCount(): Promise<number>;
   getTotalVolume(): Promise<{ volume: number; revenue: number }>;
-  banUser(userId: string, reason: string, adminId: string): Promise<User | undefined>;
+  banUser(userId: string, reason: string, adminId: string | null): Promise<User | undefined>;
   unbanUser(userId: string): Promise<User | undefined>;
   deleteUser(userId: string): Promise<boolean>;
   
@@ -822,7 +822,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // User ban operations
-  async banUser(userId: string, reason: string, adminId: string): Promise<User | undefined> {
+  async banUser(userId: string, reason: string, adminId: string | null): Promise<User | undefined> {
     const [user] = await db
       .update(users)
       .set({
