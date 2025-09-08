@@ -714,7 +714,9 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(systemSettings)
       .where(eq(systemSettings.category, category))
-      .where(eq(systemSettings.key, key));
+      .where(eq(systemSettings.key, key))
+      .orderBy(desc(systemSettings.updatedAt))
+      .limit(1);
     return setting || undefined;
   }
 
