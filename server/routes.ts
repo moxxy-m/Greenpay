@@ -2300,22 +2300,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (paymentResult.success) {
         if (type === 'virtual-card') {
-          // Find the user by the payment reference
-          const transactions = await storage.getAllTransactions();
+          // Find the user by phone number from the callback data
           let userId = null;
+          let userPhone = null;
           
-          // Find user based on the payment reference
-          // This is a simple approach - in production you might want to store reference-to-user mapping
-          for (const transaction of transactions) {
-            if (transaction.id.includes(paymentResult.reference) || 
-                transaction.description?.includes(paymentResult.reference)) {
-              userId = transaction.fromUserId || transaction.toUserId;
-              break;
+          // Extract phone from callback data if available
+          if (callbackData.response && callbackData.response.phoneNumber) {
+            userPhone = callbackData.response.phoneNumber;
+          } else if (callbackData.phone) {
+            userPhone = callbackData.phone;
+          }
+          
+          // Find user by phone number
+          if (userPhone) {
+            const users = await storage.getAllUsers();
+            const user = users.find(u => u.phone === userPhone);
+            if (user) {
+              userId = user.id;
+            }
+          }
+          
+          // Fallback: find by payment reference in existing transactions (for existing users)
+          if (!userId) {
+            const transactions = await storage.getAllTransactions();
+            for (const transaction of transactions) {
+              if (transaction.reference === paymentResult.reference) {
+                userId = transaction.userId;
+                break;
+              }
             }
           }
           
           if (!userId) {
-            console.error('Could not find user for payment reference:', paymentResult.reference);
+            console.error('Could not find user for payment reference:', paymentResult.reference, 'phone:', userPhone);
             return res.status(200).json({ message: "Payment processed but user not found" });
           }
 
@@ -2341,11 +2358,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: 'completed' as const,
             type: 'card_purchase' as const,
             description: `Virtual card purchase - Payment via M-Pesa (${paymentResult.mpesaReceiptNumber})`,
-            fees: '0'
+            fee: '0.00',
+            reference: paymentResult.reference,
+            recipientDetails: null
           };
 
           await storage.createTransaction(transactionData);
-          console.log('Card purchase transaction recorded');
+          console.log('Card purchase transaction recorded for user:', userId);
         }
         
         console.log('PayHero payment completed successfully');
