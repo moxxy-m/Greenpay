@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import Notifications from "@/components/notifications";
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
@@ -81,14 +82,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                className="relative p-2 rounded-full hover:bg-muted transition-colors"
-                data-testid="button-notifications"
-              >
-                <span className="material-icons text-muted-foreground">notifications</span>
-                <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
-              </motion.button>
+              <Notifications />
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={toggleDarkMode}
