@@ -1940,7 +1940,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const cardPriceSetting = await storage.getSystemSetting("virtual_card", "price");
       
       const settings = {
-        channelId: channelIdSetting?.value || process.env.PAYHERO_CHANNEL_ID || "608",
+        channelId: channelIdSetting?.value || process.env.PAYHERO_CHANNEL_ID || "3407",
         provider: providerSetting?.value || "m-pesa",
         cardPrice: cardPriceSetting?.value || "60.00",
         username: process.env.PAYHERO_USERNAME ? "****" : "",

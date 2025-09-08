@@ -19,7 +19,7 @@ interface PayHeroSettings {
 
 export default function PayHeroSettings() {
   const [settings, setSettings] = useState<PayHeroSettings>({
-    channelId: "608",
+    channelId: "3407",
     provider: "m-pesa",
     cardPrice: "60.00"
   });
