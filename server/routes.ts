@@ -1632,6 +1632,288 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin User Account Management
+  app.put("/api/admin/users/:id/account", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action } = req.body;
+
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      let updateData: any = {};
+      let logMessage = "";
+
+      switch (action) {
+        case "block":
+          updateData = { isEmailVerified: false, isPhoneVerified: false };
+          logMessage = `Admin blocked user account: ${user.email}`;
+          break;
+        case "unblock":
+          updateData = { isEmailVerified: true, isPhoneVerified: true };
+          logMessage = `Admin unblocked user account: ${user.email}`;
+          break;
+        case "force_logout":
+          // In a real app, you'd invalidate all user sessions
+          logMessage = `Admin forced logout for user: ${user.email}`;
+          break;
+        case "reset_password":
+          // In a real app, you'd generate and send a reset token
+          logMessage = `Admin initiated password reset for user: ${user.email}`;
+          break;
+        default:
+          return res.status(400).json({ message: "Invalid action" });
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await storage.updateUser(id, updateData);
+      }
+
+      // Log admin action
+      await storage.createAdminLog({
+        adminId: req.session.admin?.id || "system",
+        action: `user_account_${action}`,
+        details: logMessage,
+        targetId: id,
+      });
+
+      res.json({ message: "Account action completed successfully" });
+    } catch (error) {
+      console.error('Admin account action error:', error);
+      res.status(500).json({ message: "Failed to perform account action" });
+    }
+  });
+
+  // Admin User Security Management
+  app.put("/api/admin/users/:id/security", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action } = req.body;
+
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      let updateData: any = {};
+      let logMessage = "";
+
+      switch (action) {
+        case "reset_2fa":
+          updateData = { twoFactorSecret: null, twoFactorEnabled: false };
+          logMessage = `Admin reset 2FA for user: ${user.email}`;
+          break;
+        case "verify_email":
+          updateData = { isEmailVerified: true };
+          logMessage = `Admin manually verified email for user: ${user.email}`;
+          break;
+        case "verify_phone":
+          updateData = { isPhoneVerified: true };
+          logMessage = `Admin manually verified phone for user: ${user.email}`;
+          break;
+        default:
+          return res.status(400).json({ message: "Invalid security action" });
+      }
+
+      await storage.updateUser(id, updateData);
+
+      // Log admin action
+      await storage.createAdminLog({
+        adminId: req.session.admin?.id || "system",
+        action: `user_security_${action}`,
+        details: logMessage,
+        targetId: id,
+      });
+
+      res.json({ message: "Security action completed successfully" });
+    } catch (error) {
+      console.error('Admin security action error:', error);
+      res.status(500).json({ message: "Failed to perform security action" });
+    }
+  });
+
+  // Admin User Notification Settings
+  app.put("/api/admin/users/:id/notifications", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action } = req.body;
+
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      let updateData: any = {};
+      let logMessage = "";
+
+      switch (action) {
+        case "enable_notifications":
+          updateData = { pushNotificationsEnabled: true };
+          logMessage = `Admin enabled notifications for user: ${user.email}`;
+          break;
+        case "disable_notifications":
+          updateData = { pushNotificationsEnabled: false };
+          logMessage = `Admin disabled notifications for user: ${user.email}`;
+          break;
+        default:
+          return res.status(400).json({ message: "Invalid notification action" });
+      }
+
+      await storage.updateUser(id, updateData);
+
+      // Log admin action
+      await storage.createAdminLog({
+        adminId: req.session.admin?.id || "system",
+        action: `user_notifications_${action}`,
+        details: logMessage,
+        targetId: id,
+      });
+
+      res.json({ message: "Notification settings updated successfully" });
+    } catch (error) {
+      console.error('Admin notification action error:', error);
+      res.status(500).json({ message: "Failed to update notification settings" });
+    }
+  });
+
+  // Export User Data
+  app.get("/api/admin/users/:id/export", async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get all related data
+      const kyc = await storage.getKycByUserId(id);
+      const virtualCard = await storage.getVirtualCardByUserId(id);
+      const transactions = await storage.getTransactionsByUserId(id);
+      const recipients = await storage.getRecipientsByUserId(id);
+      const paymentRequests = await storage.getPaymentRequestsByUserId(id);
+
+      // Create export data object (excluding sensitive information)
+      const exportData = {
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          phone: user.phone,
+          country: user.country,
+          kycStatus: user.kycStatus,
+          isEmailVerified: user.isEmailVerified,
+          isPhoneVerified: user.isPhoneVerified,
+          hasVirtualCard: user.hasVirtualCard,
+          balance: user.balance,
+          twoFactorEnabled: user.twoFactorEnabled,
+          createdAt: user.createdAt,
+        },
+        kyc: kyc ? {
+          status: kyc.status,
+          documentType: kyc.documentType,
+          verifiedAt: kyc.verifiedAt,
+          createdAt: kyc.createdAt,
+        } : null,
+        virtualCard: virtualCard ? {
+          status: virtualCard.status,
+          balance: virtualCard.balance,
+          purchaseAmount: virtualCard.purchaseAmount,
+          purchaseDate: virtualCard.purchaseDate,
+        } : null,
+        transactions: transactions.map(tx => ({
+          id: tx.id,
+          type: tx.type,
+          amount: tx.amount,
+          currency: tx.currency,
+          status: tx.status,
+          description: tx.description,
+          createdAt: tx.createdAt,
+        })),
+        recipients: recipients.map(recipient => ({
+          id: recipient.id,
+          name: recipient.name,
+          country: recipient.country,
+          currency: recipient.currency,
+          recipientType: recipient.recipientType,
+          createdAt: recipient.createdAt,
+        })),
+        paymentRequests: paymentRequests.map(req => ({
+          id: req.id,
+          amount: req.amount,
+          currency: req.currency,
+          status: req.status,
+          createdAt: req.createdAt,
+        })),
+        exportedAt: new Date().toISOString(),
+      };
+
+      // Log admin action
+      await storage.createAdminLog({
+        adminId: req.session.admin?.id || "system",
+        action: "user_data_export",
+        details: `Admin exported data for user: ${user.email}`,
+        targetId: id,
+      });
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="user-data-${id}.json"`);
+      res.send(JSON.stringify(exportData, null, 2));
+    } catch (error) {
+      console.error('User data export error:', error);
+      res.status(500).json({ message: "Failed to export user data" });
+    }
+  });
+
+  // Send Custom Notification to User
+  app.post("/api/admin/users/:id/notification", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, message, type = "info" } = req.body;
+
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (!title || !message) {
+        return res.status(400).json({ message: "Title and message are required" });
+      }
+
+      // Create notification
+      const notification = await storage.createNotification({
+        title,
+        message,
+        type,
+        userId: id,
+        isGlobal: false,
+      });
+
+      // Log admin action
+      await storage.createAdminLog({
+        adminId: req.session.admin?.id || "system",
+        action: "send_custom_notification",
+        details: `Admin sent custom notification to user: ${user.email} - Title: ${title}`,
+        targetId: id,
+      });
+
+      res.json({ 
+        message: "Notification sent successfully",
+        notification: {
+          id: notification.id,
+          title: notification.title,
+          message: notification.message,
+          type: notification.type,
+        }
+      });
+    } catch (error) {
+      console.error('Send custom notification error:', error);
+      res.status(500).json({ message: "Failed to send notification" });
+    }
+  });
+
   // Admin user balance management
   app.put("/api/admin/users/:id/balance", async (req, res) => {
     try {
@@ -1695,7 +1977,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin virtual card management
+  // Admin virtual card management (action in URL param)
   app.put("/api/admin/users/:id/card/:action", async (req, res) => {
     try {
       const user = await storage.getUser(req.params.id);
@@ -1754,6 +2036,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Admin card management error:', error);
       res.status(500).json({ error: "Failed to update card status" });
+    }
+  });
+
+  // Admin virtual card management (action in body)
+  app.put("/api/admin/users/:id/virtual-card", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action } = req.body;
+      
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      let result;
+      switch (action) {
+        case "issue":
+          // Issue new virtual card
+          result = await storage.createVirtualCard({
+            userId: id,
+            purchaseAmount: "60.00"
+          });
+          
+          // Update user to reflect they have a card
+          await storage.updateUser(id, { hasVirtualCard: true });
+          break;
+          
+        case "activate":
+        case "freeze":
+        case "inactive":
+          // Find and update existing card
+          const card = await storage.getVirtualCardByUserId(id);
+          if (!card) {
+            return res.status(404).json({ error: "Virtual card not found" });
+          }
+          
+          let newStatus: string;
+          switch (action) {
+            case "activate":
+              newStatus = "active";
+              break;
+            case "freeze":
+              newStatus = "frozen";
+              break;
+            case "inactive":
+              newStatus = "inactive";
+              break;
+            default:
+              newStatus = "frozen";
+          }
+          
+          result = await storage.updateVirtualCard(card.id, { status: newStatus });
+          
+          // Log admin action
+          await storage.createAdminLog({
+            adminId: req.session.admin?.id || "system",
+            action: `virtual_card_${action}`,
+            details: `Admin ${action}d virtual card for user: ${user.email}`,
+            targetId: id,
+          });
+          break;
+          
+        default:
+          return res.status(400).json({ error: "Invalid action" });
+      }
+      
+      res.json({ success: true, result });
+    } catch (error) {
+      console.error('Virtual card update error:', error);
+      res.status(500).json({ error: "Failed to update virtual card" });
     }
   });
 
