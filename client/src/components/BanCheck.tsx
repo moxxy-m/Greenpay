@@ -7,15 +7,20 @@ interface BanCheckProps {
 }
 
 export default function BanCheck({ children }: BanCheckProps) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
 
   useEffect(() => {
-    // Check if user is banned and not already on banned page
-    if (user && user.isBanned && location !== "/banned") {
+    // Only check ban status if user data is loaded and user exists
+    if (!isLoading && user && user.isBanned && location !== "/banned") {
       setLocation("/banned");
     }
-  }, [user, location, setLocation]);
+  }, [user, location, setLocation, isLoading]);
+
+  // Show loading while checking user status
+  if (isLoading) {
+    return null;
+  }
 
   // If user is banned and not on the banned page, don't render children
   if (user && user.isBanned && location !== "/banned") {
