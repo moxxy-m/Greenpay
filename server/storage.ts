@@ -857,7 +857,7 @@ export class DatabaseStorage implements IStorage {
       await db.delete(virtualCards).where(eq(virtualCards.userId, userId));
       await db.delete(kycDocuments).where(eq(kycDocuments.userId, userId));
       await db.delete(recipients).where(eq(recipients.userId, userId));
-      await db.delete(paymentRequests).where(eq(paymentRequests.userId, userId));
+      await db.delete(paymentRequests).where(eq(paymentRequests.fromUserId, userId));
       await db.delete(notifications).where(eq(notifications.userId, userId));
       
       // Delete the user
