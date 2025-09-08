@@ -39,9 +39,10 @@ export default function DashboardPage() {
     if (txn.status === 'completed') {
       if (txn.type === 'receive' || txn.type === 'deposit') {
         return balance + parseFloat(txn.amount);
-      } else if (txn.type === 'send' || txn.type === 'card_purchase') {
+      } else if (txn.type === 'send' || txn.type === 'withdraw') {
         return balance - parseFloat(txn.amount) - parseFloat(txn.fee || '0');
       }
+      // Note: card_purchase is NOT deducted from balance as it's paid via external M-Pesa
     }
     return balance;
   }, parseFloat(user?.balance || '0'));
