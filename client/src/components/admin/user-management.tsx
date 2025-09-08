@@ -550,6 +550,173 @@ function UserDetailsDialog({ user }: { user: User }) {
     }
   };
 
+  const handleAccountAction = async (userId: string, action: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest("PUT", `/api/admin/users/${userId}/account`, { action });
+      
+      if (response.ok) {
+        const actionMessages: Record<string, string> = {
+          block: "Account suspended successfully",
+          unblock: "Account activated successfully", 
+          force_logout: "User logged out successfully",
+          reset_password: "Password reset email sent to user"
+        };
+
+        toast({
+          title: "Account Action Completed",
+          description: actionMessages[action] || "Action completed successfully",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to perform account action",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSecurityAction = async (userId: string, action: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest("PUT", `/api/admin/users/${userId}/security`, { action });
+      
+      if (response.ok) {
+        const actionMessages: Record<string, string> = {
+          reset_2fa: "Two-factor authentication reset successfully",
+          verify_email: "Email marked as verified",
+          verify_phone: "Phone number marked as verified"
+        };
+
+        toast({
+          title: "Security Action Completed",
+          description: actionMessages[action] || "Security action completed successfully",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to perform security action",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleNotificationAction = async (userId: string, action: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest("PUT", `/api/admin/users/${userId}/notifications`, { action });
+      
+      if (response.ok) {
+        toast({
+          title: "Notification Settings Updated",
+          description: action.includes("enable") ? "Notifications enabled for user" : "Notifications disabled for user",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update notification settings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDataAction = async (userId: string, action: string) => {
+    if (action === "view_activity") {
+      toast({
+        title: "Feature Coming Soon",
+        description: "User activity logs will be available in the next update",
+      });
+      return;
+    }
+
+    if (action === "export_data") {
+      setIsLoading(true);
+      try {
+        const response = await apiRequest("GET", `/api/admin/users/${userId}/export`);
+        
+        if (response.ok) {
+          // Create download link for exported data
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `user-data-${userId}.json`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+
+          toast({
+            title: "Data Exported",
+            description: "User data has been exported and downloaded",
+          });
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to export user data",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleSendNotification = async (userId: string) => {
+    const title = (document.getElementById("notification-title") as HTMLInputElement)?.value;
+    const message = (document.getElementById("notification-message") as HTMLInputElement)?.value;
+    
+    if (!title || !message) {
+      toast({
+        title: "Error",
+        description: "Please enter both title and message",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await apiRequest("POST", `/api/admin/users/${userId}/notification`, {
+        title,
+        message,
+        type: "info"
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "Notification Sent",
+          description: "Custom notification sent to user successfully",
+        });
+
+        // Clear form
+        (document.getElementById("notification-title") as HTMLInputElement).value = "";
+        (document.getElementById("notification-message") as HTMLInputElement).value = "";
+      }
+    } catch (error) {
+      toast({
+        title: "Error", 
+        description: "Failed to send notification",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Basic Information */}
@@ -744,24 +911,177 @@ function UserDetailsDialog({ user }: { user: User }) {
         </div>
       </div>
 
+      {/* Account Management */}
+      <div>
+        <h4 className="font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <Settings className="w-4 h-4" />
+          Account Management
+        </h4>
+        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleAccountAction(user.id, user.isBlocked ? "unblock" : "block")}
+              disabled={isLoading}
+              data-testid="button-suspend-account"
+            >
+              {user.isBlocked ? <Unlock className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
+              {user.isBlocked ? "Unblock Account" : "Suspend Account"}
+            </Button>
+
+            <Button
+              variant="outline" 
+              size="sm"
+              onClick={() => handleAccountAction(user.id, "force_logout")}
+              disabled={isLoading}
+              data-testid="button-force-logout"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Force Logout
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleAccountAction(user.id, "reset_password")}
+              disabled={isLoading}
+              data-testid="button-reset-password"
+            >
+              <Key className="w-4 h-4 mr-2" />
+              Reset Password
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* Security Actions */}
       <div>
-        <h4 className="font-medium text-gray-900 dark:text-white mb-4">Security Actions</h4>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-          >
-            <Shield className="w-4 h-4 mr-2" />
-            Reset 2FA
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-          >
-            <Mail className="w-4 h-4 mr-2" />
-            Send Verification Email
-          </Button>
+        <h4 className="font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <Shield className="w-4 h-4" />
+          Security Actions
+        </h4>
+        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSecurityAction(user.id, "reset_2fa")}
+              disabled={isLoading}
+              data-testid="button-reset-2fa"
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Reset 2FA
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSecurityAction(user.id, "verify_email")}
+              disabled={isLoading}
+              data-testid="button-verify-email"
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              Verify Email
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSecurityAction(user.id, "verify_phone")}
+              disabled={isLoading}
+              data-testid="button-verify-phone"
+            >
+              <Phone className="w-4 h-4 mr-2" />
+              Verify Phone
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleNotificationAction(user.id, user.pushNotificationsEnabled ? "disable_notifications" : "enable_notifications")}
+              disabled={isLoading}
+              data-testid="button-toggle-notifications"
+            >
+              {user.pushNotificationsEnabled ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
+              {user.pushNotificationsEnabled ? "Disable Notifications" : "Enable Notifications"}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDataAction(user.id, "view_activity")}
+              disabled={isLoading}
+              data-testid="button-view-activity"
+            >
+              <Activity className="w-4 h-4 mr-2" />
+              View Activity
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDataAction(user.id, "export_data")}
+              disabled={isLoading}
+              data-testid="button-export-data"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Data
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Send Custom Notification */}
+      <div>
+        <h4 className="font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <Bell className="w-4 h-4" />
+          Send Custom Notification
+        </h4>
+        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="notification-title">Notification Title</Label>
+              <Input
+                id="notification-title"
+                type="text"
+                placeholder="Enter notification title"
+                data-testid="input-notification-title"
+              />
+            </div>
+            <div>
+              <Label htmlFor="notification-message">Message</Label>
+              <Input
+                id="notification-message"
+                type="text"
+                placeholder="Enter notification message"
+                data-testid="input-notification-message"
+              />
+            </div>
+            <div>
+              <Label htmlFor="notification-type">Type</Label>
+              <Select>
+                <SelectTrigger data-testid="select-notification-type">
+                  <SelectValue placeholder="Select notification type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="info">Info</SelectItem>
+                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="security">Security Alert</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={() => handleSendNotification(user.id)}
+              disabled={isLoading}
+              className="w-full"
+              data-testid="button-send-notification"
+            >
+              <Bell className="w-4 h-4 mr-2" />
+              Send Notification
+            </Button>
+          </div>
         </div>
       </div>
     </div>
