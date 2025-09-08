@@ -19,6 +19,8 @@ import {
   type InsertAdminLog,
   type SystemSetting,
   type InsertSystemSetting,
+  type SystemLog,
+  type InsertSystemLog,
   users,
   kycDocuments,
   virtualCards,
@@ -29,10 +31,11 @@ import {
   admins,
   adminLogs,
   systemSettings,
+  systemLogs,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, desc, count, sum, or, isNull } from "drizzle-orm";
+import { eq, desc, count, sum, or, isNull, gte, lt } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 export interface IStorage {
@@ -91,6 +94,11 @@ export interface IStorage {
   }>;
   createAdminLog(log: InsertAdminLog): Promise<AdminLog>;
   getAdminLogs(): Promise<AdminLog[]>;
+
+  // System logs
+  createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
+  getSystemLogs(minutes?: number): Promise<SystemLog[]>;
+  deleteOldSystemLogs(minutes?: number): Promise<void>;
   
   // System Settings operations
   getSystemSettings(): Promise<SystemSetting[]>;
@@ -652,6 +660,30 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(adminLogs)
       .orderBy(desc(adminLogs.createdAt));
+  }
+
+  async createSystemLog(insertLog: InsertSystemLog): Promise<SystemLog> {
+    const [log] = await db
+      .insert(systemLogs)
+      .values(insertLog)
+      .returning();
+    return log;
+  }
+
+  async getSystemLogs(minutes: number = 30): Promise<SystemLog[]> {
+    const timeAgo = new Date(Date.now() - minutes * 60 * 1000);
+    return await db
+      .select()
+      .from(systemLogs)
+      .where(gte(systemLogs.timestamp, timeAgo))
+      .orderBy(desc(systemLogs.timestamp));
+  }
+
+  async deleteOldSystemLogs(minutes: number = 30): Promise<void> {
+    const timeAgo = new Date(Date.now() - minutes * 60 * 1000);
+    await db
+      .delete(systemLogs)
+      .where(lt(systemLogs.timestamp, timeAgo));
   }
 
   // Admin data operations

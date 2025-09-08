@@ -2307,6 +2307,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete notification
+  app.delete("/api/admin/notifications/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await storage.deleteNotification(id);
+      
+      res.json({ 
+        success: true, 
+        message: "Notification deleted successfully" 
+      });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      res.status(500).json({ message: "Error deleting notification" });
+    }
+  });
+
+  // System logs endpoints
+  app.get("/api/admin/system-logs", async (req, res) => {
+    try {
+      const minutes = req.query.minutes ? parseInt(req.query.minutes as string) : 30;
+      const logs = await storage.getSystemLogs(minutes);
+      res.json({ logs });
+    } catch (error) {
+      console.error('Error fetching system logs:', error);
+      res.status(500).json({ message: "Error fetching system logs" });
+    }
+  });
+
+  // Update withdrawal status
+  app.put("/api/admin/withdrawals/:id/status", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, adminNotes } = req.body;
+      
+      if (!status || !['pending', 'completed', 'failed'].includes(status)) {
+        return res.status(400).json({ message: "Invalid status. Must be pending, completed, or failed." });
+      }
+      
+      const updatedWithdrawal = await storage.updateWithdrawalRequest(id, {
+        status,
+        adminNotes,
+        processedAt: status !== 'pending' ? new Date() : null
+      });
+      
+      if (!updatedWithdrawal) {
+        return res.status(404).json({ message: "Withdrawal request not found" });
+      }
+      
+      res.json({ 
+        withdrawal: updatedWithdrawal,
+        message: `Withdrawal status updated to ${status}` 
+      });
+    } catch (error) {
+      console.error('Error updating withdrawal status:', error);
+      res.status(500).json({ message: "Error updating withdrawal status" });
+    }
+  });
+
   // System settings endpoint for card price
   app.get("/api/system-settings/card-price", async (req, res) => {
     try {

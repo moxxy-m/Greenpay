@@ -212,6 +212,15 @@ export const adminLogs = pgTable("admin_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const systemLogs = pgTable("system_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  level: text("level").notNull(), // info, warn, error, debug, api
+  message: text("message").notNull(),
+  source: text("source"),
+  data: json("data"),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
 // System settings
 export const systemSettings = pgTable("system_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -226,6 +235,7 @@ export const systemSettings = pgTable("system_settings", {
 export type Admin = typeof admins.$inferSelect;
 export type AdminLog = typeof adminLogs.$inferSelect;
 export type SystemSetting = typeof systemSettings.$inferSelect;
+export type SystemLog = typeof systemLogs.$inferSelect;
 
 export const insertAdminSchema = createInsertSchema(admins).omit({
   id: true,
@@ -243,6 +253,12 @@ export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit
   updatedAt: true,
 });
 
+export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
 export type InsertAdmin = z.infer<typeof insertAdminSchema>;
 export type InsertAdminLog = z.infer<typeof insertAdminLogSchema>;
+export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
