@@ -2318,10 +2318,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Valid price is required" });
       }
       
-      await storage.setSystemSetting("virtual_card", "price", parseFloat(price).toFixed(2));
+      const formattedPrice = parseFloat(price).toFixed(2);
+      
+      // Check if setting exists
+      const existingSetting = await storage.getSystemSetting("virtual_card", "price");
+      
+      if (existingSetting) {
+        // Update existing setting
+        await storage.updateSystemSetting(existingSetting.id, { value: formattedPrice });
+      } else {
+        // Create new setting
+        await storage.setSystemSetting({
+          category: "virtual_card",
+          key: "price", 
+          value: formattedPrice
+        });
+      }
+      
       res.json({ 
         success: true, 
-        price: parseFloat(price).toFixed(2),
+        price: formattedPrice,
         message: "Card price updated successfully" 
       });
     } catch (error) {
