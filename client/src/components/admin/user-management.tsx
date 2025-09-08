@@ -37,8 +37,7 @@ import {
   FileText,
   Shield,
   AlertTriangle,
-  Ban,
-  ShieldOff
+  Trash2
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -73,8 +72,7 @@ export default function UserManagement() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [banDialogOpen, setBanDialogOpen] = useState(false);
-  const [banReason, setBanReason] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -92,55 +90,31 @@ export default function UserManagement() {
     },
   });
 
-  const banUserMutation = useMutation({
-    mutationFn: async ({ userId, reason }: { userId: string; reason: string }) => {
-      const response = await apiRequest("POST", `/api/admin/users/${userId}/ban`, { reason });
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await apiRequest("DELETE", `/api/admin/users/${userId}`);
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({
-        title: "User Banned",
-        description: "User has been successfully banned",
+        title: "User Deleted",
+        description: "User account has been permanently deleted",
       });
-      setBanDialogOpen(false);
-      setBanReason("");
+      setDeleteDialogOpen(false);
       setSelectedUser(null);
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to ban user",
+        description: "Failed to delete user account",
         variant: "destructive",
       });
     },
   });
 
-  const unbanUserMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const response = await apiRequest("POST", `/api/admin/users/${userId}/unban`, {});
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({
-        title: "User Unbanned",
-        description: "User has been successfully unbanned",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to unban user",
-        variant: "destructive",
-      });
-    },
-  });
 
   const getUserStatusBadge = (user: User) => {
-    if (user.isBanned) {
-      return <Badge variant="destructive">Banned</Badge>;
-    }
     if (user.kycStatus === "verified") {
       return <Badge variant="default">Verified</Badge>;
     }
@@ -150,14 +124,14 @@ export default function UserManagement() {
     return <Badge variant="outline">Active</Badge>;
   };
 
-  const handleBanUser = (user: User) => {
+  const handleDeleteUser = (user: User) => {
     setSelectedUser(user);
-    setBanDialogOpen(true);
+    setDeleteDialogOpen(true);
   };
 
-  const confirmBan = () => {
-    if (!selectedUser || !banReason.trim()) return;
-    banUserMutation.mutate({ userId: selectedUser.id, reason: banReason });
+  const confirmDelete = () => {
+    if (!selectedUser) return;
+    deleteUserMutation.mutate(selectedUser.id);
   };
 
   if (error) {
@@ -209,7 +183,6 @@ export default function UserManagement() {
                 <SelectItem value="active">Active Users</SelectItem>
                 <SelectItem value="pending">Pending KYC</SelectItem>
                 <SelectItem value="verified">Verified Users</SelectItem>
-                <SelectItem value="banned">Banned Users</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -300,26 +273,14 @@ export default function UserManagement() {
                             </DialogContent>
                           </Dialog>
 
-                          {user.isBanned ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => unbanUserMutation.mutate(user.id)}
-                              disabled={unbanUserMutation.isPending}
-                              data-testid={`button-unban-user-${user.id}`}
-                            >
-                              <ShieldOff className="w-4 h-4 text-green-600" />
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleBanUser(user)}
-                              data-testid={`button-ban-user-${user.id}`}
-                            >
-                              <Ban className="w-4 h-4 text-red-600" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUser(user)}
+                            data-testid={`button-delete-user-${user.id}`}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -360,55 +321,52 @@ export default function UserManagement() {
         </CardContent>
       </Card>
 
-      {/* Ban User Dialog */}
-      <Dialog open={banDialogOpen} onOpenChange={setBanDialogOpen}>
+      {/* Delete User Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ban User</DialogTitle>
+            <DialogTitle>Delete User Account</DialogTitle>
             <DialogDescription>
-              This will ban the user from accessing their account. They will see the ban reason and have the option to delete their account.
+              This will permanently delete the user's account and all associated data. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
 
           {selectedUser && (
             <div className="space-y-4">
+              <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                <h4 className="font-medium mb-2 text-red-800">⚠️ Warning</h4>
+                <div className="space-y-2 text-sm text-red-700">
+                  <p>• This will permanently delete the user's account</p>
+                  <p>• All transaction history will be removed</p>
+                  <p>• Virtual card will be cancelled immediately</p>
+                  <p>• Any remaining funds will need manual processing</p>
+                  <p>• This action cannot be reversed</p>
+                </div>
+              </div>
+
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium mb-2">User Details</h4>
                 <div className="space-y-1 text-sm">
                   <p><strong>Name:</strong> {selectedUser.fullName}</p>
                   <p><strong>Email:</strong> {selectedUser.email}</p>
                   <p><strong>Phone:</strong> {selectedUser.phone}</p>
+                  <p><strong>Balance:</strong> ${selectedUser.balance || "0.00"}</p>
                 </div>
-              </div>
-
-              <div>
-                <label htmlFor="ban-reason" className="block text-sm font-medium mb-1">
-                  Ban Reason (Required)
-                </label>
-                <textarea
-                  id="ban-reason"
-                  value={banReason}
-                  onChange={(e) => setBanReason(e.target.value)}
-                  placeholder="Explain why this user is being banned..."
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                  rows={3}
-                  data-testid="ban-reason-input"
-                />
               </div>
             </div>
           )}
 
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setBanDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancel
             </Button>
             <Button
-              onClick={confirmBan}
-              disabled={banUserMutation.isPending || !banReason.trim()}
+              onClick={confirmDelete}
+              disabled={deleteUserMutation.isPending}
               className="bg-red-600 hover:bg-red-700 text-white"
-              data-testid="confirm-ban-button"
+              data-testid="confirm-delete-button"
             >
-              {banUserMutation.isPending ? 'Banning...' : 'Ban User'}
+              {deleteUserMutation.isPending ? 'Deleting...' : 'Permanently Delete Account'}
             </Button>
           </div>
         </DialogContent>
