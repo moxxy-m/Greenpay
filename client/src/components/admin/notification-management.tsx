@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bell, Send, Users, Calendar, MessageSquare, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Bell, Send, Users, Calendar, MessageSquare, AlertCircle, CheckCircle, Clock, Trash2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
@@ -80,6 +80,27 @@ export default function NotificationManagement() {
       toast({
         title: "Error",
         description: error?.message || "Failed to send notification",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteNotificationMutation = useMutation({
+    mutationFn: async (notificationId: string) => {
+      const response = await apiRequest('DELETE', `/api/admin/notifications/${notificationId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/notifications"] });
+      toast({
+        title: "Notification Deleted",
+        description: "The notification has been deleted successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete notification",
         variant: "destructive",
       });
     },
@@ -204,9 +225,21 @@ export default function NotificationManagement() {
                             <p className="text-sm text-gray-600">Global broadcast</p>
                           </div>
                         </div>
-                        <Badge className={getTypeColor(notification.type)}>
-                          {notification.type}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getTypeColor(notification.type)}>
+                            {notification.type}
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteNotificationMutation.mutate(notification.id)}
+                            disabled={deleteNotificationMutation.isPending}
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                            data-testid={`delete-notification-${notification.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -259,9 +292,21 @@ export default function NotificationManagement() {
                           <p className="text-sm text-gray-600">Expired notification</p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-gray-600">
-                        Expired
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-gray-600">
+                          Expired
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteNotificationMutation.mutate(notification.id)}
+                          disabled={deleteNotificationMutation.isPending}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          data-testid={`delete-expired-notification-${notification.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
