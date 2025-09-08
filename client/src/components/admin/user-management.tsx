@@ -36,8 +36,7 @@ import {
   CreditCard,
   FileText,
   Shield,
-  AlertTriangle,
-  Trash2
+  AlertTriangle
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -69,8 +68,6 @@ export default function UserManagement() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -125,29 +122,6 @@ export default function UserManagement() {
       toast({
         title: "Error",
         description: "Failed to unblock user",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteUserMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const response = await apiRequest("DELETE", `/api/admin/users/${userId}`);
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({
-        title: "User Deleted",
-        description: data.message || "User account has been permanently deleted",
-      });
-      setDeleteDialogOpen(false);
-      setUserToDelete(null);
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to delete user account",
         variant: "destructive",
       });
     },
@@ -331,19 +305,6 @@ export default function UserManagement() {
                               <UserX className="w-4 h-4 text-red-600" />
                             </Button>
                           )}
-                          
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setUserToDelete(user);
-                              setDeleteDialogOpen(true);
-                            }}
-                            disabled={deleteUserMutation.isPending}
-                            data-testid={`button-delete-user-${user.id}`}
-                          >
-                            <Trash2 className="w-4 h-4 text-red-600" />
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -383,57 +344,6 @@ export default function UserManagement() {
           )}
         </CardContent>
       </Card>
-
-      {/* Delete User Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-red-600">⚠️ Delete User Account</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone. This will permanently delete the user account and all associated data.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {userToDelete && (
-            <div className="space-y-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
-                  <span className="font-medium text-red-700">Warning: This action is irreversible</span>
-                </div>
-                <p className="text-sm text-red-600 mt-2">
-                  You are about to permanently delete the following user account:
-                </p>
-                <div className="mt-3 p-3 bg-white rounded border">
-                  <p className="font-medium">{userToDelete.fullName}</p>
-                  <p className="text-sm text-gray-600">{userToDelete.email}</p>
-                  <p className="text-sm text-gray-600">Balance: ${userToDelete.balance || "0.00"}</p>
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setDeleteDialogOpen(false);
-                    setUserToDelete(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => deleteUserMutation.mutate(userToDelete.id)}
-                  disabled={deleteUserMutation.isPending}
-                  data-testid="confirm-delete-user"
-                >
-                  {deleteUserMutation.isPending ? "Deleting..." : "Delete Permanently"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

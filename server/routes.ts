@@ -2324,53 +2324,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete user account
-  app.delete("/api/admin/users/:id", async (req, res) => {
-    try {
-      const userId = req.params.id;
-      
-      // Check if user exists first
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      // Delete user and all related data
-      await storage.deleteUser(userId);
-      
-      res.json({ 
-        success: true, 
-        message: `User ${user.fullName} (${user.email}) has been permanently deleted` 
-      });
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      res.status(500).json({ message: "Error deleting user account" });
-    }
-  });
-
-  // Update virtual card status
-  app.patch("/api/admin/virtual-cards/:id/status", async (req, res) => {
-    try {
-      const cardId = req.params.id;
-      const { status } = req.body;
-
-      if (!status || !['active', 'inactive', 'blocked'].includes(status)) {
-        return res.status(400).json({ message: "Invalid status. Must be active, inactive, or blocked" });
-      }
-
-      const updatedCard = await storage.updateVirtualCard(cardId, { status });
-      
-      if (!updatedCard) {
-        return res.status(404).json({ message: "Virtual card not found" });
-      }
-
-      res.json({ success: true, card: updatedCard });
-    } catch (error) {
-      console.error('Error updating card status:', error);
-      res.status(500).json({ message: "Error updating virtual card status" });
-    }
-  });
-
   // System logs endpoints
   app.get("/api/admin/system-logs", async (req, res) => {
     try {

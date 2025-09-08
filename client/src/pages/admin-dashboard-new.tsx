@@ -433,7 +433,7 @@ function AdminDashboardTab({ dashboardData }: { dashboardData?: DashboardData })
 }
 
 function AdminUsersTab() {
-  return <UserManagement />;
+  return <EnhancedUserManagement />;
 }
 
 function AdminKycTab() {

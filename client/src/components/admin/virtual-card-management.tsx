@@ -41,7 +41,7 @@ interface VirtualCard {
   expiryDate: string;
   cvv: string;
   cardHolderName: string;
-  status: string; // active, inactive, blocked
+  isActive: boolean;
   balance: string;
   currency: string;
   purchaseDate: string;
@@ -70,46 +70,42 @@ export default function VirtualCardManagement() {
   });
 
   // Handle the case where cardsData might be undefined or have different structure
-  const cards: VirtualCard[] = cardsData?.cards || cardsData?.virtualCards || [];
+  const cards = cardsData?.cards || cardsData?.virtualCards || [];
 
-  const updateCardStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const response = await apiRequest("PATCH", `/api/admin/virtual-cards/${id}/status`, { status });
+  const updateCardMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<VirtualCard> }) => {
+      const response = await apiRequest("PUT", `/api/admin/virtual-cards/${id}`, updates);
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/virtual-cards"] });
       toast({
-        title: "Card Status Updated",
-        description: "Virtual card status has been updated successfully",
+        title: "Card Updated",
+        description: "Virtual card has been updated successfully",
       });
+      setSelectedCard(null);
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to update virtual card status",
+        description: "Failed to update virtual card",
         variant: "destructive",
       });
     },
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge variant="default" className="bg-green-500">Active</Badge>;
-      case 'inactive':
-        return <Badge variant="secondary">Inactive</Badge>;
-      case 'blocked':
-        return <Badge variant="destructive">Blocked</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+  const getStatusBadge = (isActive: boolean) => {
+    return isActive ? (
+      <Badge variant="default" className="bg-green-500">Active</Badge>
+    ) : (
+      <Badge variant="destructive">Blocked</Badge>
+    );
   };
 
-  const handleStatusChange = (card: VirtualCard, newStatus: string) => {
-    updateCardStatusMutation.mutate({
+  const handleToggleStatus = (card: VirtualCard) => {
+    updateCardMutation.mutate({
       id: card.id,
-      status: newStatus
+      updates: { isActive: !card.isActive }
     });
   };
 
@@ -129,9 +125,8 @@ export default function VirtualCardManagement() {
     );
   }
 
-  const activeCards = cards.filter(c => c.status === 'active').length || 0;
-  const inactiveCards = cards.filter(c => c.status === 'inactive').length || 0;
-  const blockedCards = cards.filter(c => c.status === 'blocked').length || 0;
+  const activeCards = cards.filter(c => c.isActive).length || 0;
+  const blockedCards = cards.filter(c => !c.isActive).length || 0;
   const totalBalance = cardsData?.virtualCards?.reduce((sum, c) => sum + parseFloat(c.balance), 0) || 0;
 
   return (
@@ -188,17 +183,6 @@ export default function VirtualCardManagement() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-orange-600" />
-              <div>
-                <p className="text-sm text-gray-500">Inactive Cards</p>
-                <p className="text-lg font-bold">{inactiveCards}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
               <Lock className="w-4 h-4 text-red-600" />
               <div>
                 <p className="text-sm text-gray-500">Blocked Cards</p>
@@ -244,7 +228,7 @@ export default function VirtualCardManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cards.map((card: VirtualCard) => (
+                {cards.map((card) => (
                   <TableRow key={card.id}>
                     <TableCell>
                       <div>
@@ -263,7 +247,7 @@ export default function VirtualCardManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {getStatusBadge(card.status)}
+                      {getStatusBadge(card.isActive)}
                     </TableCell>
                     <TableCell>
                       <span className="font-mono">
@@ -303,44 +287,26 @@ export default function VirtualCardManagement() {
                             {selectedCard && (
                               <CardDetailsDialog 
                                 card={selectedCard} 
-                                onStatusChange={(newStatus) => handleStatusChange(selectedCard, newStatus)}
-                                isLoading={updateCardStatusMutation.isPending}
+                                onToggleStatus={() => handleToggleStatus(selectedCard)}
+                                isLoading={updateCardMutation.isPending}
                               />
                             )}
                           </DialogContent>
                         </Dialog>
 
-                        {card.status === 'active' ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleStatusChange(card, 'inactive')}
-                            disabled={updateCardStatusMutation.isPending}
-                            data-testid={`button-deactivate-card-${card.id}`}
-                          >
-                            <Lock className="w-4 h-4 text-orange-600" />
-                          </Button>
-                        ) : card.status === 'inactive' ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleStatusChange(card, 'active')}
-                            disabled={updateCardStatusMutation.isPending}
-                            data-testid={`button-activate-card-${card.id}`}
-                          >
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleToggleStatus(card)}
+                          disabled={updateCardMutation.isPending}
+                          data-testid={`button-toggle-card-${card.id}`}
+                        >
+                          {card.isActive ? (
+                            <Lock className="w-4 h-4 text-red-600" />
+                          ) : (
                             <Unlock className="w-4 h-4 text-green-600" />
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleStatusChange(card, 'active')}
-                            disabled={updateCardStatusMutation.isPending}
-                            data-testid={`button-unblock-card-${card.id}`}
-                          >
-                            <Unlock className="w-4 h-4 text-green-600" />
-                          </Button>
-                        )}
+                          )}
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -356,11 +322,11 @@ export default function VirtualCardManagement() {
 
 function CardDetailsDialog({ 
   card, 
-  onStatusChange, 
+  onToggleStatus, 
   isLoading 
 }: {
   card: VirtualCard;
-  onStatusChange: (newStatus: string) => void;
+  onToggleStatus: () => void;
   isLoading: boolean;
 }) {
   return (
@@ -402,17 +368,8 @@ function CardDetailsDialog({
             </div>
             <div>
               <span className="text-sm text-gray-500">Status:</span>
-              <Badge 
-                variant={
-                  card.status === 'active' ? 'default' : 
-                  card.status === 'inactive' ? 'secondary' : 
-                  'destructive'
-                } 
-                className="ml-2"
-              >
-                {card.status === 'active' ? 'Active' : 
-                 card.status === 'inactive' ? 'Inactive' : 
-                 'Blocked'}
+              <Badge variant={card.isActive ? "default" : "destructive"} className="ml-2">
+                {card.isActive ? "Active" : "Blocked"}
               </Badge>
             </div>
           </div>
@@ -446,58 +403,20 @@ function CardDetailsDialog({
       <div>
         <h4 className="font-medium text-gray-900 dark:text-white mb-2">Card Actions</h4>
         <div className="flex gap-2">
-          {card.status === 'active' ? (
-            <Button
-              onClick={() => onStatusChange('inactive')}
-              disabled={isLoading}
-              variant="destructive"
-              data-testid="button-deactivate-card"
-            >
-              {isLoading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-              ) : (
-                <Lock className="w-4 h-4 mr-2" />
-              )}
-              Deactivate Card
-            </Button>
-          ) : card.status === 'inactive' ? (
-            <Button
-              onClick={() => onStatusChange('active')}
-              disabled={isLoading}
-              variant="default"
-              data-testid="button-activate-card"
-            >
-              {isLoading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-              ) : (
-                <Unlock className="w-4 h-4 mr-2" />
-              )}
-              Activate Card
-            </Button>
-          ) : (
-            <Button
-              onClick={() => onStatusChange('active')}
-              disabled={isLoading}
-              variant="default"
-              data-testid="button-unblock-card"
-            >
-              {isLoading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-              ) : (
-                <Unlock className="w-4 h-4 mr-2" />
-              )}
-              Unblock Card
-            </Button>
-          )}
-          
           <Button
-            onClick={() => onStatusChange('blocked')}
-            disabled={isLoading || card.status === 'blocked'}
-            variant="destructive"
-            data-testid="button-block-card"
+            onClick={onToggleStatus}
+            disabled={isLoading}
+            variant={card.isActive ? "destructive" : "default"}
+            data-testid="button-toggle-card-status"
           >
-            <Lock className="w-4 h-4 mr-2" />
-            Block Card
+            {isLoading ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+            ) : card.isActive ? (
+              <Lock className="w-4 h-4 mr-2" />
+            ) : (
+              <Unlock className="w-4 h-4 mr-2" />
+            )}
+            {card.isActive ? "Block Card" : "Activate Card"}
           </Button>
           <Button
             variant="outline"

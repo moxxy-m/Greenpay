@@ -33,14 +33,11 @@ import PaymentFailedPage from "@/pages/payment-failed";
 import PaymentProcessingPage from "@/pages/payment-processing";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard-new";
-import LandingPage from "@/pages/landing";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={LandingPage} />
-      <Route path="/landing" component={LandingPage} />
-      <Route path="/splash" component={SplashPage} />
+      <Route path="/" component={SplashPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
       <Route path="/dashboard" component={DashboardPage} />
