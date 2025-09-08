@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
