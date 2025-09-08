@@ -40,6 +40,7 @@ import AdminSettings from "@/components/admin/admin-settings";
 import PayHeroSettings from "@/components/admin/payhero-settings";
 import WithdrawalManagement from "@/components/admin/withdrawal-management";
 import NotificationManagement from "@/components/admin/notification-management";
+import CardPriceManagement from "@/components/admin/card-price-management";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -97,6 +98,7 @@ export default function AdminDashboard() {
     { id: "transactions", label: "Transactions", icon: DollarSign },
     { id: "withdrawals", label: "Withdrawals", icon: Banknote },
     { id: "cards", label: "Virtual Cards", icon: CreditCard },
+    { id: "pricing", label: "Card Pricing", icon: DollarSign },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "payhero", label: "PayHero Settings", icon: Smartphone },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
@@ -117,6 +119,8 @@ export default function AdminDashboard() {
         return <WithdrawalManagement />;
       case "cards":
         return <AdminCardsTab />;
+      case "pricing":
+        return <CardPriceManagement />;
       case "notifications":
         return <NotificationManagement />;
       case "payhero":

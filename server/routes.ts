@@ -2309,6 +2309,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update system settings card price endpoint
+  app.put("/api/system-settings/card-price", async (req, res) => {
+    try {
+      const { price } = req.body;
+      
+      if (!price || isNaN(parseFloat(price)) || parseFloat(price) <= 0) {
+        return res.status(400).json({ message: "Valid price is required" });
+      }
+      
+      await storage.setSystemSetting("virtual_card", "price", parseFloat(price).toFixed(2));
+      res.json({ 
+        success: true, 
+        price: parseFloat(price).toFixed(2),
+        message: "Card price updated successfully" 
+      });
+    } catch (error) {
+      console.error('Error updating card price:', error);
+      res.status(500).json({ message: "Error updating card price" });
+    }
+  });
+
   // Admin login as user endpoint
   app.post("/api/admin/login-as-user", async (req, res) => {
     try {
