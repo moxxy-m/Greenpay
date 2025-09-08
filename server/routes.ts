@@ -1673,7 +1673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log admin action
       await storage.createAdminLog({
-        adminId: req.session.admin?.id || "system",
+        adminId: req.session.admin?.id || null,
         action: `user_account_${action}`,
         details: logMessage,
         targetId: id,
@@ -1721,7 +1721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log admin action
       await storage.createAdminLog({
-        adminId: req.session.admin?.id || "system",
+        adminId: req.session.admin?.id || null,
         action: `user_security_${action}`,
         details: logMessage,
         targetId: id,
@@ -1765,7 +1765,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log admin action
       await storage.createAdminLog({
-        adminId: req.session.admin?.id || "system",
+        adminId: req.session.admin?.id || null,
         action: `user_notifications_${action}`,
         details: logMessage,
         targetId: id,
@@ -1852,7 +1852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log admin action
       await storage.createAdminLog({
-        adminId: req.session.admin?.id || "system",
+        adminId: req.session.admin?.id || null,
         action: "user_data_export",
         details: `Admin exported data for user: ${user.email}`,
         targetId: id,
@@ -1893,7 +1893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log admin action
       await storage.createAdminLog({
-        adminId: req.session.admin?.id || "system",
+        adminId: req.session.admin?.id || null,
         action: "send_custom_notification",
         details: `Admin sent custom notification to user: ${user.email} - Title: ${title}`,
         targetId: id,
@@ -2091,7 +2091,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Log admin action
           await storage.createAdminLog({
-            adminId: req.session.admin?.id || "system",
+            adminId: req.session.admin?.id || null,
             action: `virtual_card_${action}`,
             details: `Admin ${action}d virtual card for user: ${user.email}`,
             targetId: id,
