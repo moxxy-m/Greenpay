@@ -63,6 +63,7 @@ export interface IStorage {
   getTransactionsByUserId(userId: string): Promise<Transaction[]>;
   getTransaction(id: string): Promise<Transaction | undefined>;
   updateTransaction(id: string, updates: Partial<Transaction>): Promise<Transaction | undefined>;
+  updateWithdrawalRequest(id: string, updates: Partial<Transaction>): Promise<Transaction | undefined>;
 
   // Recipient operations
   createRecipient(recipient: InsertRecipient): Promise<Recipient>;
@@ -531,6 +532,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(transactions.id, id))
       .returning();
     return transaction || undefined;
+  }
+
+  async updateWithdrawalRequest(id: string, updates: Partial<Transaction>): Promise<Transaction | undefined> {
+    // Withdrawal requests are stored as transactions with type "withdraw"
+    return this.updateTransaction(id, updates);
   }
 
   // Payment Request operations

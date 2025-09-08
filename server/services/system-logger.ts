@@ -1,4 +1,4 @@
-import { storage } from "../index";
+import { storage } from "../storage";
 
 export class SystemLogger {
   private static instance: SystemLogger;

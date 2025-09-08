@@ -4,6 +4,7 @@ import ConnectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { systemLogger } from "./services/system-logger";
 
 // Ensure NODE_ENV is set for deployment
 if (!process.env.NODE_ENV) {
@@ -106,6 +107,10 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
+    // Initialize system logger to capture console output
+    systemLogger.init();
+    console.log('✅ System logger initialized - capturing console output to database');
+    
     const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
