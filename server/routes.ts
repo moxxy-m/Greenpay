@@ -2206,6 +2206,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // System settings endpoint for card price
+  app.get("/api/system-settings/card-price", async (req, res) => {
+    try {
+      const cardPriceSetting = await storage.getSystemSetting("virtual_card", "price");
+      const cardPrice = cardPriceSetting?.value || "60.00";
+      res.json({ price: cardPrice });
+    } catch (error) {
+      console.error('Error fetching card price:', error);
+      res.status(500).json({ message: "Error fetching card price" });
+    }
+  });
+
   // Admin login as user endpoint
   app.post("/api/admin/login-as-user", async (req, res) => {
     try {

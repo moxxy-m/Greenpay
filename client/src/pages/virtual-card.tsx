@@ -27,9 +27,19 @@ export default function VirtualCardPage() {
     enabled: !!user?.id,
   });
 
+  // Get current card price from system settings
+  const { data: settingsData } = useQuery({
+    queryKey: ["/api/system-settings/card-price"],
+  });
+
   const card = (cardData as any)?.card;
   const hasCard = user?.hasVirtualCard || !!card;
   const transactions = (transactionData as any)?.transactions || [];
+  
+  // Get current card price (fallback to $60.00)
+  const currentCardPrice = (settingsData as any)?.price || "60.00";
+  const originalPrice = "60.00";
+  const discountPrice = currentCardPrice;
   
   // Real-time balance calculation (same as dashboard)
   const realTimeBalance = transactions.reduce((balance: number, txn: any) => {
@@ -174,8 +184,8 @@ export default function VirtualCardPage() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium">Virtual Card</span>
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm line-through text-muted-foreground">$60.00</span>
-                    <span className="text-xl font-bold text-green-600">$15.00</span>
+                    <span className="text-sm line-through text-muted-foreground">${originalPrice}</span>
+                    <span className="text-xl font-bold text-green-600">${discountPrice}</span>
                     <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">
                       75% OFF
                     </div>
@@ -211,7 +221,7 @@ export default function VirtualCardPage() {
                 disabled={false}
                 data-testid="button-purchase-card"
               >
-                {purchaseCardMutation.isPending ? "Processing..." : "Purchase Card - $15.00"}
+                {purchaseCardMutation.isPending ? "Processing..." : `Purchase Card - $${discountPrice}`}
               </Button>
 
               <p className="text-xs text-muted-foreground">
@@ -502,7 +512,7 @@ export default function VirtualCardPage() {
                 >
                   <h3 className="text-xl font-bold mb-2">Limited Time Offer!</h3>
                   <p className="text-white/90 text-sm">
-                    Get your Virtual Card for just <span className="font-bold text-yellow-300">$15</span> instead of <span className="line-through">$60</span>
+                    Get your Virtual Card for just <span className="font-bold text-yellow-300">${discountPrice}</span> instead of <span className="line-through">${originalPrice}</span>
                   </p>
                 </motion.div>
 
