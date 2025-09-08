@@ -26,7 +26,8 @@ import {
   Smartphone,
   Banknote,
   Bell,
-  FileText
+  FileText,
+  Receipt
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
@@ -42,6 +43,7 @@ import PayHeroSettings from "@/components/admin/payhero-settings";
 import WithdrawalManagement from "@/components/admin/withdrawal-management";
 import NotificationManagement from "@/components/admin/notification-management";
 import LogsManagement from "@/components/admin/logs-management";
+import StatementManagement from "@/components/admin/statement-management";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -101,6 +103,7 @@ export default function AdminDashboard() {
     { id: "cards", label: "Virtual Cards", icon: CreditCard },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "logs", label: "System Logs", icon: FileText },
+    { id: "statements", label: "Statements", icon: Receipt },
     { id: "payhero", label: "PayHero Settings", icon: Smartphone },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "settings", label: "Settings", icon: Settings },
@@ -124,6 +127,8 @@ export default function AdminDashboard() {
         return <NotificationManagement />;
       case "logs":
         return <LogsManagement />;
+      case "statements":
+        return <StatementManagement />;
       case "payhero":
         return <PayHeroSettings />;
       case "analytics":

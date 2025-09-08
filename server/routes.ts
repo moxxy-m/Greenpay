@@ -15,6 +15,7 @@ import { twoFactorService } from "./services/2fa";
 import { biometricService } from "./services/biometric";
 import { notificationService } from "./services/notifications";
 import { logger } from "./services/logger";
+import { pdfStatementService } from "./services/pdf-statement";
 
 // Configure multer for file uploads
 const upload = multer({
@@ -1036,6 +1037,172 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ transaction });
     } catch (error) {
       res.status(500).json({ message: "Error fetching transaction status" });
+    }
+  });
+
+  // PDF Statement Generation Endpoints
+  app.get("/api/statements/user/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { startDate, endDate, includePersonalInfo } = req.query;
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      let transactions = await storage.getTransactionsByUserId(userId);
+
+      // Filter by date range if provided
+      if (startDate) {
+        transactions = transactions.filter(t => 
+          new Date(t.createdAt) >= new Date(startDate as string)
+        );
+      }
+      if (endDate) {
+        transactions = transactions.filter(t => 
+          new Date(t.createdAt) <= new Date(endDate as string)
+        );
+      }
+
+      const pdfBuffer = await pdfStatementService.generateUserStatement(
+        user,
+        transactions,
+        {
+          startDate: startDate ? new Date(startDate as string) : undefined,
+          endDate: endDate ? new Date(endDate as string) : undefined,
+          includePersonalInfo: includePersonalInfo !== 'false'
+        }
+      );
+
+      logger.info('User statement generated', {
+        userId,
+        transactionCount: transactions.length,
+        dateRange: { startDate, endDate }
+      }, { source: 'pdf', userId });
+
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="statement-${user.fullName.replace(/\s+/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf"`,
+        'Content-Length': pdfBuffer.length
+      });
+
+      res.send(pdfBuffer);
+    } catch (error) {
+      logger.error('User statement generation error', error, { source: 'pdf' });
+      res.status(500).json({ message: "Error generating statement" });
+    }
+  });
+
+  app.get("/api/admin/statements/all", async (req, res) => {
+    try {
+      const { startDate, endDate, adminName } = req.query;
+
+      // Get all transactions for admin report
+      const allUsers = await storage.getAllUsers();
+      let allTransactions: any[] = [];
+
+      for (const user of allUsers) {
+        const userTransactions = await storage.getTransactionsByUserId(user.id);
+        allTransactions = allTransactions.concat(userTransactions);
+      }
+
+      // Sort by date descending
+      allTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      // Filter by date range if provided
+      if (startDate) {
+        allTransactions = allTransactions.filter(t => 
+          new Date(t.createdAt) >= new Date(startDate as string)
+        );
+      }
+      if (endDate) {
+        allTransactions = allTransactions.filter(t => 
+          new Date(t.createdAt) <= new Date(endDate as string)
+        );
+      }
+
+      const pdfBuffer = await pdfStatementService.generateAdminStatement(
+        allTransactions,
+        {
+          startDate: startDate ? new Date(startDate as string) : undefined,
+          endDate: endDate ? new Date(endDate as string) : undefined,
+          adminName: adminName as string,
+          title: 'Administrative Transaction Report'
+        }
+      );
+
+      logger.info('Admin statement generated', {
+        transactionCount: allTransactions.length,
+        dateRange: { startDate, endDate },
+        adminName
+      }, { source: 'pdf' });
+
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="admin-report-${new Date().toISOString().split('T')[0]}.pdf"`,
+        'Content-Length': pdfBuffer.length
+      });
+
+      res.send(pdfBuffer);
+    } catch (error) {
+      logger.error('Admin statement generation error', error, { source: 'pdf' });
+      res.status(500).json({ message: "Error generating admin report" });
+    }
+  });
+
+  app.get("/api/admin/statements/user/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { startDate, endDate, adminName } = req.query;
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      let transactions = await storage.getTransactionsByUserId(userId);
+
+      // Filter by date range if provided
+      if (startDate) {
+        transactions = transactions.filter(t => 
+          new Date(t.createdAt) >= new Date(startDate as string)
+        );
+      }
+      if (endDate) {
+        transactions = transactions.filter(t => 
+          new Date(t.createdAt) <= new Date(endDate as string)
+        );
+      }
+
+      const pdfBuffer = await pdfStatementService.generateUserStatement(
+        user,
+        transactions,
+        {
+          startDate: startDate ? new Date(startDate as string) : undefined,
+          endDate: endDate ? new Date(endDate as string) : undefined,
+          includePersonalInfo: true,
+          title: `Admin Report for ${user.fullName}`
+        }
+      );
+
+      logger.info('Admin user statement generated', {
+        targetUserId: userId,
+        transactionCount: transactions.length,
+        dateRange: { startDate, endDate },
+        adminName
+      }, { source: 'pdf' });
+
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="user-${user.fullName.replace(/\s+/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf"`,
+        'Content-Length': pdfBuffer.length
+      });
+
+      res.send(pdfBuffer);
+    } catch (error) {
+      logger.error('Admin user statement generation error', error, { source: 'pdf' });
+      res.status(500).json({ message: "Error generating user statement" });
     }
   });
 

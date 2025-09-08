@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Notifications from "@/components/notifications";
+import StatementDownload from "@/components/statement-download";
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
@@ -318,6 +319,16 @@ export default function DashboardPage() {
             <p className="font-semibold">Support</p>
             <p className="text-xs text-muted-foreground">24/7 help</p>
           </motion.button>
+        </motion.div>
+
+        {/* Statement Download */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mt-6"
+        >
+          <StatementDownload />
         </motion.div>
 
         {/* Recent Transactions */}
