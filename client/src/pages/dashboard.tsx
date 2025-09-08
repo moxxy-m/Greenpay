@@ -102,23 +102,46 @@ export default function DashboardPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-amber-50 border border-amber-200 p-4 rounded-xl"
+            className={`p-4 rounded-xl ${
+              user?.kycStatus === 'pending' 
+                ? 'bg-blue-50 border border-blue-200' 
+                : 'bg-amber-50 border border-amber-200'
+            }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center">
-                <span className="material-icons text-amber-600 mr-2">warning</span>
+                <span className={`material-icons mr-2 ${
+                  user?.kycStatus === 'pending' ? 'text-blue-600' : 'text-amber-600'
+                }`}>
+                  {user?.kycStatus === 'pending' ? 'hourglass_empty' : 'warning'}
+                </span>
                 <div>
-                  <h3 className="font-medium text-amber-800">Verify Your Identity</h3>
-                  <p className="text-sm text-amber-700">Complete KYC to unlock all features</p>
+                  <h3 className={`font-medium ${
+                    user?.kycStatus === 'pending' ? 'text-blue-800' : 'text-amber-800'
+                  }`}>
+                    {user?.kycStatus === 'pending' ? 'Verification Pending' : 'Verify Your Identity'}
+                  </h3>
+                  <p className={`text-sm ${
+                    user?.kycStatus === 'pending' ? 'text-blue-700' : 'text-amber-700'
+                  }`}>
+                    {user?.kycStatus === 'pending' 
+                      ? 'Your documents are under review' 
+                      : 'Complete KYC to unlock all features'
+                    }
+                  </p>
                 </div>
               </div>
               <Button
                 onClick={() => setLocation("/kyc")}
                 size="sm"
-                className="bg-amber-600 hover:bg-amber-700"
+                className={
+                  user?.kycStatus === 'pending'
+                    ? 'bg-blue-600 hover:bg-blue-700'
+                    : 'bg-amber-600 hover:bg-amber-700'
+                }
                 data-testid="button-verify-kyc"
               >
-                Verify Now
+                {user?.kycStatus === 'pending' ? 'View Status' : 'Verify Now'}
               </Button>
             </div>
           </motion.div>

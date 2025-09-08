@@ -95,6 +95,7 @@ export default function KYCPage() {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
+  // Handle verified status
   if (user?.kycStatus === "verified") {
     return (
       <div className="min-h-screen bg-background pb-20">
@@ -124,6 +125,51 @@ export default function KYCPage() {
           </p>
           <Button onClick={() => setLocation("/dashboard")} className="px-8">
             Continue to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle pending status - restrict multiple submissions
+  if (user?.kycStatus === "pending" || kycData) {
+    return (
+      <div className="min-h-screen bg-background pb-20">
+        <motion.div className="bg-card shadow-sm p-4 flex items-center elevation-1">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setLocation("/dashboard")}
+            className="material-icons text-muted-foreground mr-3 p-2 rounded-full hover:bg-muted transition-colors"
+          >
+            arrow_back
+          </motion.button>
+          <h1 className="text-lg font-semibold">Identity Verification</h1>
+        </motion.div>
+
+        <div className="p-6 flex flex-col items-center justify-center min-h-[60vh]">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200 }}
+            className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6"
+          >
+            <span className="material-icons text-4xl text-blue-600">hourglass_empty</span>
+          </motion.div>
+          <h2 className="text-2xl font-bold text-center mb-4">Verification Pending</h2>
+          <p className="text-muted-foreground text-center mb-8 max-w-sm">
+            Your KYC documents have been submitted and are currently under review. 
+            You'll be notified once the verification is complete.
+          </p>
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6 max-w-sm">
+            <h3 className="font-medium text-blue-800 mb-2">What happens next?</h3>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• Our team will review your documents</li>
+              <li>• Verification typically takes 1-2 business days</li>
+              <li>• You'll receive an email notification</li>
+            </ul>
+          </div>
+          <Button onClick={() => setLocation("/dashboard")} className="px-8">
+            Return to Dashboard
           </Button>
         </div>
       </div>
