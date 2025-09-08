@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +30,7 @@ interface LogEntry {
 }
 
 export default function SystemLogs() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [realtimeLogs, setRealtimeLogs] = useState<LogEntry[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [filter, setFilter] = useState("");
@@ -37,6 +38,30 @@ export default function SystemLogs() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+
+  // Fetch stored logs from database
+  const { data: storedLogsData, isLoading } = useQuery({
+    queryKey: ["/api/admin/system-logs"],
+    queryFn: async () => {
+      const response = await fetch("/api/admin/system-logs?minutes=30");
+      if (!response.ok) throw new Error("Failed to fetch system logs");
+      return response.json();
+    },
+  });
+
+  // Combine stored logs with realtime logs
+  const logs = [
+    ...(storedLogsData?.logs || []).map((log: any) => ({
+      id: log.id,
+      timestamp: log.timestamp,
+      level: log.level,
+      message: log.message,
+      source: log.source,
+      data: log.data ? (typeof log.data === 'string' ? JSON.parse(log.data) : log.data) : undefined
+    })),
+    ...realtimeLogs
+  ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .slice(-2000); // Keep only last 2000 logs for performance
 
   useEffect(() => {
     connectWebSocket();
@@ -69,10 +94,10 @@ export default function SystemLogs() {
         if (!isPaused) {
           try {
             const logEntry: LogEntry = JSON.parse(event.data);
-            setLogs(prev => {
+            setRealtimeLogs(prev => {
               const newLogs = [...prev, logEntry];
-              // Keep only last 1000 logs to prevent memory issues
-              return newLogs.slice(-1000);
+              // Keep only last 500 realtime logs to prevent memory issues
+              return newLogs.slice(-500);
             });
           } catch (error) {
             console.error('Failed to parse log entry:', error);
@@ -117,7 +142,7 @@ export default function SystemLogs() {
   };
 
   const clearLogs = () => {
-    setLogs([]);
+    setRealtimeLogs([]);
   };
 
   const downloadLogs = () => {
@@ -256,7 +281,12 @@ export default function SystemLogs() {
             Live System Logs
           </CardTitle>
           <CardDescription>
-            Showing {filteredLogs.length} of {logs.length} log entries
+            Showing {filteredLogs.length} of {logs.length} log entries (last 30 minutes)
+            {isLoading && (
+              <Badge variant="outline" className="ml-2">
+                Loading...
+              </Badge>
+            )}
             {isPaused && (
               <Badge variant="outline" className="ml-2">
                 Paused
@@ -271,8 +301,10 @@ export default function SystemLogs() {
                 <div className="flex items-center justify-center h-full text-gray-500">
                   <div className="text-center">
                     <Terminal className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No logs to display</p>
-                    {!isConnected && (
+                    <p className="text-sm">
+                      {isLoading ? "Loading logs..." : "No logs to display"}
+                    </p>
+                    {!isConnected && !isLoading && (
                       <p className="text-xs mt-1">Waiting for connection...</p>
                     )}
                   </div>
