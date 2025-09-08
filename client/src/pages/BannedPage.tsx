@@ -18,6 +18,12 @@ export default function BannedPage() {
 
   // Check if account is already deleted when page loads
   useEffect(() => {
+    // Skip redirect logic for admin users
+    const adminAuth = localStorage.getItem("adminAuth");
+    if (adminAuth) {
+      return; // Admin users should not be redirected
+    }
+
     if (user?.id && !isLoading) {
       // Check if user still exists in the database
       fetch(`/api/auth/user-exists/${user.id}`)
