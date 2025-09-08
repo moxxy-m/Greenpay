@@ -34,7 +34,6 @@ import PaymentFailedPage from "@/pages/payment-failed";
 import PaymentProcessingPage from "@/pages/payment-processing";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard-new";
-import BannedPage from "@/pages/BannedPage";
 
 function Router() {
   return (
@@ -70,7 +69,6 @@ function Router() {
       <Route path="/admin-dashboard" component={AdminDashboard} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
-      <Route path="/banned" component={BannedPage} />
       <Route component={NotFound} />
     </Switch>
   );
