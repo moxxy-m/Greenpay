@@ -39,8 +39,14 @@ import BannedPage from "@/pages/BannedPage";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={SplashPage} />
       <Route path="/landing" component={SplashPage} />
+      <Route path="/">
+        {() => {
+          // Redirect root path to landing page
+          window.location.href = "/landing";
+          return null;
+        }}
+      </Route>
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
       <Route path="/dashboard" component={DashboardPage} />
