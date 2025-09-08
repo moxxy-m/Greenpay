@@ -1,33 +1,25 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertTriangle, Shield, Trash2, Calendar } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function BannedPage() {
   const [location, setLocation] = useLocation();
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { toast } = useToast();
-
-  // Get current user data to show ban information
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["/api/auth/profile"],
-    queryFn: async () => {
-      const response = await fetch("/api/auth/profile");
-      if (!response.ok) throw new Error("Failed to fetch profile");
-      return response.json();
-    },
-  });
+  const { user, isLoading } = useAuth();
 
   const deleteAccountMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', '/api/auth/delete-account', {
-        userId: user?.user?.id,
+        userId: user?.id,
         termsAccepted: true
       });
       return response.json();
@@ -37,9 +29,9 @@ export default function BannedPage() {
         title: "Account Deleted",
         description: "Your account has been permanently deleted.",
       });
-      // Redirect to home page after successful deletion
+      // Redirect to landing page after successful deletion
       setTimeout(() => {
-        setLocation("/");
+        setLocation("/landing");
       }, 2000);
     },
     onError: (error: any) => {
@@ -84,7 +76,7 @@ export default function BannedPage() {
     );
   }
 
-  if (!user?.user?.isBanned) {
+  if (!user?.isBanned) {
     // If user is not banned, redirect them to dashboard immediately
     setLocation("/dashboard");
     return null;
@@ -117,16 +109,16 @@ export default function BannedPage() {
             <div>
               <h4 className="font-medium text-gray-900 mb-2">Reason for Suspension</h4>
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800">{user.user.banReason}</p>
+                <p className="text-red-800">{user.banReason}</p>
               </div>
             </div>
 
-            {user.user.bannedAt && (
+            {user.bannedAt && (
               <div>
                 <h4 className="font-medium text-gray-900 mb-2">Suspension Date</h4>
                 <div className="flex items-center gap-2 text-gray-600">
                   <Calendar className="w-4 h-4" />
-                  <span>{formatDate(user.user.bannedAt)}</span>
+                  <span>{formatDate(user.bannedAt.toString())}</span>
                 </div>
               </div>
             )}

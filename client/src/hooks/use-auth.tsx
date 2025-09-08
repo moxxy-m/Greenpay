@@ -20,7 +20,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check for stored user data on app load
     const storedUser = localStorage.getItem("greenpay_user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Failed to parse stored user data:", error);
+        localStorage.removeItem("greenpay_user");
+      }
     }
     setIsLoading(false);
   }, []);

@@ -39,6 +39,7 @@ import BannedPage from "@/pages/BannedPage";
 function Router() {
   return (
     <Switch>
+      <Route path="/landing" component={SplashPage} />
       <Route path="/" component={SplashPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
