@@ -37,7 +37,8 @@ import {
   FileText,
   Shield,
   AlertTriangle,
-  Trash2
+  Trash2,
+  CreditCardOff
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -73,6 +74,7 @@ export default function UserManagement() {
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [cardActionUser, setCardActionUser] = useState<User | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -113,6 +115,27 @@ export default function UserManagement() {
     },
   });
 
+  const toggleCardMutation = useMutation({
+    mutationFn: async ({ userId, action }: { userId: string; action: 'activate' | 'deactivate' }) => {
+      const response = await apiRequest("PUT", `/api/admin/users/${userId}/card-status`, { action });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: "Card Status Updated",
+        description: "User's virtual card status has been updated",
+      });
+      setCardActionUser(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update card status",
+        variant: "destructive",
+      });
+    },
+  });
 
   const getUserStatusBadge = (user: User) => {
     if (user.kycStatus === "verified") {
@@ -273,6 +296,18 @@ export default function UserManagement() {
                             </DialogContent>
                           </Dialog>
 
+                          {user.hasVirtualCard && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setCardActionUser(user)}
+                              data-testid={`button-card-action-${user.id}`}
+                              title="Deactivate Card"
+                            >
+                              <CreditCardOff className="w-4 h-4 text-orange-600" />
+                            </Button>
+                          )}
+                          
                           <Button
                             variant="ghost"
                             size="sm"
@@ -367,6 +402,63 @@ export default function UserManagement() {
               data-testid="confirm-delete-button"
             >
               {deleteUserMutation.isPending ? 'Deleting...' : 'Permanently Delete Account'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Card Action Dialog */}
+      <Dialog open={!!cardActionUser} onOpenChange={() => setCardActionUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate Virtual Card</DialogTitle>
+            <DialogDescription>
+              This will deactivate the user's virtual card. They will not be able to use it for transactions.
+            </DialogDescription>
+          </DialogHeader>
+
+          {cardActionUser && (
+            <div className="space-y-4">
+              <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg">
+                <h4 className="font-medium mb-2 text-orange-800">⚠️ Card Deactivation</h4>
+                <div className="space-y-2 text-sm text-orange-700">
+                  <p>• User will no longer be able to use their virtual card</p>
+                  <p>• Existing transactions will continue to process</p>
+                  <p>• Card can be reactivated later if needed</p>
+                  <p>• User will be notified of this action</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">User Details</h4>
+                <div className="space-y-1 text-sm">
+                  <p><strong>Name:</strong> {cardActionUser.fullName}</p>
+                  <p><strong>Email:</strong> {cardActionUser.email}</p>
+                  <p><strong>Card Status:</strong> {cardActionUser.hasVirtualCard ? "Active" : "Inactive"}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setCardActionUser(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (cardActionUser) {
+                  toggleCardMutation.mutate({ 
+                    userId: cardActionUser.id, 
+                    action: cardActionUser.hasVirtualCard ? 'deactivate' : 'activate' 
+                  });
+                }
+              }}
+              disabled={toggleCardMutation.isPending}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              data-testid="confirm-card-action-button"
+            >
+              {toggleCardMutation.isPending ? 'Processing...' : 
+                (cardActionUser?.hasVirtualCard ? 'Deactivate Card' : 'Activate Card')}
             </Button>
           </div>
         </DialogContent>

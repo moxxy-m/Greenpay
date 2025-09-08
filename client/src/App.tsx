@@ -41,8 +41,8 @@ function Router() {
       <Route path="/landing" component={SplashPage} />
       <Route path="/">
         {() => {
-          // Redirect root path to landing page
-          window.location.href = "/landing";
+          // Force redirect to landing page
+          window.location.replace("/landing");
           return null;
         }}
       </Route>

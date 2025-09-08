@@ -2373,6 +2373,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin toggle user card status
+  app.put("/api/admin/users/:id/card-status", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action } = req.body;
+      
+      if (!action || !['activate', 'deactivate'].includes(action)) {
+        return res.status(400).json({ message: "Invalid action. Must be 'activate' or 'deactivate'" });
+      }
+
+      // Verify user exists
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Update user's virtual card status
+      const hasVirtualCard = action === 'activate';
+      const updatedUser = await storage.updateUser(id, { hasVirtualCard });
+      if (!updatedUser) {
+        return res.status(500).json({ message: "Failed to update card status" });
+      }
+
+      res.json({ 
+        success: true,
+        message: `Virtual card ${action}d successfully`,
+        user: updatedUser
+      });
+    } catch (error) {
+      console.error('Error updating card status:', error);
+      res.status(500).json({ message: "Error updating card status" });
+    }
+  });
+
   // Check if user still exists
   app.get("/api/auth/user-exists/:userId", async (req, res) => {
     try {
