@@ -23,6 +23,10 @@ export const users = pgTable("users", {
   otpExpiry: timestamp("otp_expiry"),
   paystackCustomerId: text("paystack_customer_id"),
   defaultCurrency: text("default_currency").default("KES"),
+  isBanned: boolean("is_banned").default(false),
+  banReason: text("ban_reason"),
+  bannedAt: timestamp("banned_at"),
+  bannedBy: varchar("banned_by").references(() => admins.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
