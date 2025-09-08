@@ -2296,6 +2296,395 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Transaction Analytics API
+  app.get("/api/analytics/:userId/spending", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { period = "month" } = req.query;
+      
+      const transactions = await storage.getTransactionsByUserId(userId);
+      const now = new Date();
+      let startDate: Date;
+      
+      switch (period) {
+        case "week":
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      }
+      
+      const filteredTransactions = transactions.filter(tx => 
+        new Date(tx.createdAt!) >= startDate && tx.status === "completed"
+      );
+      
+      const spending = filteredTransactions
+        .filter(tx => tx.type === "send")
+        .reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
+        
+      const income = filteredTransactions
+        .filter(tx => tx.type === "receive")
+        .reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
+      
+      const categorySpending = filteredTransactions
+        .filter(tx => tx.type === "send")
+        .reduce((acc, tx) => {
+          const category = tx.description?.includes("Virtual Card") ? "Virtual Card" :
+                          tx.description?.includes("Transfer") ? "Transfer" :
+                          tx.description?.includes("Payment") ? "Payment" : "Other";
+          acc[category] = (acc[category] || 0) + parseFloat(tx.amount);
+          return acc;
+        }, {} as Record<string, number>);
+      
+      const dailySpending = filteredTransactions
+        .filter(tx => tx.type === "send")
+        .reduce((acc, tx) => {
+          const day = new Date(tx.createdAt!).toISOString().split('T')[0];
+          acc[day] = (acc[day] || 0) + parseFloat(tx.amount);
+          return acc;
+        }, {} as Record<string, number>);
+      
+      res.json({
+        period,
+        totalSpending: spending,
+        totalIncome: income,
+        netFlow: income - spending,
+        transactionCount: filteredTransactions.length,
+        categoryBreakdown: categorySpending,
+        dailySpending,
+        averageTransaction: filteredTransactions.length > 0 ? 
+          (spending + income) / filteredTransactions.length : 0
+      });
+    } catch (error) {
+      console.error('Analytics error:', error);
+      res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  // Payment Requests API
+  app.post("/api/payment-requests", async (req, res) => {
+    try {
+      const { fromUserId, toUserId, amount, currency, description, dueDate } = req.body;
+      
+      const paymentRequest = await storage.createPaymentRequest({
+        fromUserId,
+        toUserId, 
+        amount: parseFloat(amount).toFixed(2),
+        currency: currency || "USD",
+        description: description || "Payment request",
+        dueDate: dueDate ? new Date(dueDate) : null,
+        status: "pending"
+      });
+      
+      // Send notification to recipient
+      await notificationService.sendPaymentRequestNotification(toUserId, fromUserId, amount, currency);
+      
+      res.json({ paymentRequest });
+    } catch (error) {
+      console.error('Payment request creation error:', error);
+      res.status(500).json({ message: "Failed to create payment request" });
+    }
+  });
+
+  app.get("/api/payment-requests/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { type = "all" } = req.query;
+      
+      const allRequests = await storage.getPaymentRequestsByUserId(userId);
+      
+      let filteredRequests = allRequests;
+      if (type === "sent") {
+        filteredRequests = allRequests.filter(req => req.fromUserId === userId);
+      } else if (type === "received") {
+        filteredRequests = allRequests.filter(req => req.toUserId === userId);
+      }
+      
+      res.json({ paymentRequests: filteredRequests });
+    } catch (error) {
+      console.error('Payment requests fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch payment requests" });
+    }
+  });
+
+  app.put("/api/payment-requests/:id/:action", async (req, res) => {
+    try {
+      const { id, action } = req.params;
+      const { userId } = req.body;
+      
+      const paymentRequest = await storage.getPaymentRequest(id);
+      if (!paymentRequest) {
+        return res.status(404).json({ message: "Payment request not found" });
+      }
+      
+      if (action === "accept" && paymentRequest.toUserId === userId) {
+        // Process payment from recipient to sender
+        const recipient = await storage.getUser(paymentRequest.toUserId!);
+        const sender = await storage.getUser(paymentRequest.fromUserId!);
+        
+        if (!recipient || !sender) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        
+        const recipientBalance = parseFloat(recipient.balance || "0");
+        const amount = parseFloat(paymentRequest.amount);
+        
+        if (recipientBalance < amount) {
+          return res.status(400).json({ message: "Insufficient balance" });
+        }
+        
+        // Update balances
+        await storage.updateUser(recipient.id, { 
+          balance: (recipientBalance - amount).toFixed(2) 
+        });
+        await storage.updateUser(sender.id, { 
+          balance: (parseFloat(sender.balance || "0") + amount).toFixed(2) 
+        });
+        
+        // Create transaction records
+        await storage.createTransaction({
+          userId: recipient.id,
+          type: "send",
+          amount: amount.toFixed(2),
+          currency: paymentRequest.currency,
+          status: "completed",
+          description: `Payment to ${sender.fullName}`,
+          recipientId: sender.id,
+          recipientName: sender.fullName,
+          fee: "0.00",
+          exchangeRate: "1",
+          sourceAmount: amount.toFixed(2),
+          sourceCurrency: paymentRequest.currency
+        });
+        
+        await storage.createTransaction({
+          userId: sender.id,
+          type: "receive", 
+          amount: amount.toFixed(2),
+          currency: paymentRequest.currency,
+          status: "completed",
+          description: `Payment from ${recipient.fullName}`,
+          recipientId: recipient.id,
+          recipientName: recipient.fullName,
+          fee: "0.00",
+          exchangeRate: "1",
+          sourceAmount: amount.toFixed(2),
+          sourceCurrency: paymentRequest.currency
+        });
+        
+        // Update payment request status
+        await storage.updatePaymentRequest(id, { status: "completed" });
+        
+        // Send notifications
+        await notificationService.sendPaymentNotification(sender.id, "received", amount, paymentRequest.currency);
+        await notificationService.sendPaymentNotification(recipient.id, "sent", amount, paymentRequest.currency);
+        
+        res.json({ message: "Payment completed successfully" });
+      } else if (action === "decline" && paymentRequest.toUserId === userId) {
+        await storage.updatePaymentRequest(id, { status: "declined" });
+        res.json({ message: "Payment request declined" });
+      } else if (action === "cancel" && paymentRequest.fromUserId === userId) {
+        await storage.updatePaymentRequest(id, { status: "cancelled" });
+        res.json({ message: "Payment request cancelled" });
+      } else {
+        res.status(403).json({ message: "Not authorized to perform this action" });
+      }
+    } catch (error) {
+      console.error('Payment request action error:', error);
+      res.status(500).json({ message: "Failed to process payment request" });
+    }
+  });
+
+  // Savings Goals API
+  app.post("/api/savings-goals", async (req, res) => {
+    try {
+      const { userId, title, targetAmount, targetDate, description } = req.body;
+      
+      const savingsGoal = await storage.createSavingsGoal({
+        userId,
+        title,
+        targetAmount: parseFloat(targetAmount).toFixed(2),
+        currentAmount: "0.00",
+        targetDate: targetDate ? new Date(targetDate) : null,
+        description: description || "",
+        isActive: true
+      });
+      
+      res.json({ savingsGoal });
+    } catch (error) {
+      console.error('Savings goal creation error:', error);
+      res.status(500).json({ message: "Failed to create savings goal" });
+    }
+  });
+
+  app.get("/api/savings-goals/:userId", async (req, res) => {
+    try {
+      const savingsGoals = await storage.getSavingsGoalsByUserId(req.params.userId);
+      res.json({ savingsGoals });
+    } catch (error) {
+      console.error('Savings goals fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch savings goals" });
+    }
+  });
+
+  app.put("/api/savings-goals/:id/contribute", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { amount, userId } = req.body;
+      
+      const savingsGoal = await storage.getSavingsGoal(id);
+      if (!savingsGoal) {
+        return res.status(404).json({ message: "Savings goal not found" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const userBalance = parseFloat(user.balance || "0");
+      const contributionAmount = parseFloat(amount);
+      
+      if (userBalance < contributionAmount) {
+        return res.status(400).json({ message: "Insufficient balance" });
+      }
+      
+      // Update user balance
+      await storage.updateUser(userId, {
+        balance: (userBalance - contributionAmount).toFixed(2)
+      });
+      
+      // Update savings goal
+      const newAmount = parseFloat(savingsGoal.currentAmount || "0") + contributionAmount;
+      await storage.updateSavingsGoal(id, {
+        currentAmount: newAmount.toFixed(2)
+      });
+      
+      // Create transaction record
+      await storage.createTransaction({
+        userId,
+        type: "send",
+        amount: contributionAmount.toFixed(2),
+        currency: "USD",
+        status: "completed",
+        description: `Savings contribution: ${savingsGoal.title}`,
+        recipientId: null,
+        recipientName: "Savings Goal",
+        fee: "0.00",
+        exchangeRate: "1",
+        sourceAmount: contributionAmount.toFixed(2),
+        sourceCurrency: "USD"
+      });
+      
+      res.json({ message: "Contribution added successfully", newAmount: newAmount.toFixed(2) });
+    } catch (error) {
+      console.error('Savings contribution error:', error);
+      res.status(500).json({ message: "Failed to add contribution" });
+    }
+  });
+
+  // QR Code Payment API  
+  app.post("/api/qr-payments/generate", async (req, res) => {
+    try {
+      const { userId, amount, currency, description } = req.body;
+      
+      const paymentCode = `GP${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      
+      const qrPayment = await storage.createQRPayment({
+        userId,
+        paymentCode,
+        amount: parseFloat(amount).toFixed(2),
+        currency: currency || "USD",
+        description: description || "QR Payment",
+        isActive: true,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+      });
+      
+      res.json({ qrPayment, paymentCode });
+    } catch (error) {
+      console.error('QR payment generation error:', error);
+      res.status(500).json({ message: "Failed to generate QR payment" });
+    }
+  });
+
+  app.post("/api/qr-payments/process", async (req, res) => {
+    try {
+      const { paymentCode, payerUserId } = req.body;
+      
+      const qrPayment = await storage.getQRPaymentByCode(paymentCode);
+      if (!qrPayment || !qrPayment.isActive || new Date() > new Date(qrPayment.expiresAt!)) {
+        return res.status(400).json({ message: "Invalid or expired payment code" });
+      }
+      
+      const payer = await storage.getUser(payerUserId);
+      const recipient = await storage.getUser(qrPayment.userId);
+      
+      if (!payer || !recipient) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const amount = parseFloat(qrPayment.amount);
+      const payerBalance = parseFloat(payer.balance || "0");
+      
+      if (payerBalance < amount) {
+        return res.status(400).json({ message: "Insufficient balance" });
+      }
+      
+      // Process payment
+      await storage.updateUser(payerUserId, {
+        balance: (payerBalance - amount).toFixed(2)
+      });
+      await storage.updateUser(recipient.id, {
+        balance: (parseFloat(recipient.balance || "0") + amount).toFixed(2)
+      });
+      
+      // Create transactions
+      await storage.createTransaction({
+        userId: payerUserId,
+        type: "send",
+        amount: amount.toFixed(2),
+        currency: qrPayment.currency,
+        status: "completed",
+        description: `QR Payment to ${recipient.fullName}`,
+        recipientId: recipient.id,
+        recipientName: recipient.fullName,
+        fee: "0.00",
+        exchangeRate: "1",
+        sourceAmount: amount.toFixed(2),
+        sourceCurrency: qrPayment.currency
+      });
+      
+      await storage.createTransaction({
+        userId: recipient.id,
+        type: "receive",
+        amount: amount.toFixed(2),
+        currency: qrPayment.currency,
+        status: "completed",
+        description: `QR Payment from ${payer.fullName}`,
+        recipientId: payerUserId,
+        recipientName: payer.fullName,
+        fee: "0.00",
+        exchangeRate: "1",
+        sourceAmount: amount.toFixed(2),
+        sourceCurrency: qrPayment.currency
+      });
+      
+      // Deactivate QR code
+      await storage.updateQRPayment(qrPayment.id, { isActive: false });
+      
+      res.json({ message: "Payment processed successfully" });
+    } catch (error) {
+      console.error('QR payment processing error:', error);
+      res.status(500).json({ message: "Failed to process QR payment" });
+    }
+  });
+
   // PayHero admin settings endpoints
   app.get("/api/admin/payhero-settings", async (req, res) => {
     try {

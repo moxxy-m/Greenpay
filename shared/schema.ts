@@ -262,3 +262,123 @@ export type InsertAdmin = z.infer<typeof insertAdminSchema>;
 export type InsertAdminLog = z.infer<typeof insertAdminLogSchema>;
 export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
+
+// Enhanced Features Tables
+export const savingsGoals = pgTable("savings_goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  title: text("title").notNull(),
+  targetAmount: decimal("target_amount", { precision: 10, scale: 2 }).notNull(),
+  currentAmount: decimal("current_amount", { precision: 10, scale: 2 }).default("0.00"),
+  targetDate: timestamp("target_date"),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const qrPayments = pgTable("qr_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  paymentCode: text("payment_code").notNull().unique(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("USD"),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  processedAt: timestamp("processed_at"),
+});
+
+export const scheduledPayments = pgTable("scheduled_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  recipientId: varchar("recipient_id").references(() => recipients.id),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("USD"),
+  frequency: text("frequency").notNull(), // daily, weekly, monthly, yearly
+  nextPaymentDate: timestamp("next_payment_date").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastPaymentAt: timestamp("last_payment_at"),
+  totalPaymentsMade: text("total_payments_made").notNull().default("0"),
+});
+
+export const budgets = pgTable("budgets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  category: text("category").notNull(),
+  budgetAmount: decimal("budget_amount", { precision: 10, scale: 2 }).notNull(),
+  spentAmount: decimal("spent_amount", { precision: 10, scale: 2 }).default("0.00"),
+  period: text("period").notNull(), // monthly, weekly, yearly
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  alertThreshold: text("alert_threshold").default("80"), // Alert when 80% of budget is spent
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const userPreferences = pgTable("user_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull().unique(),
+  theme: text("theme").default("light"), // light, dark, auto
+  language: text("language").default("en"),
+  biometricEnabled: boolean("biometric_enabled").default(false),
+  transactionLimit: decimal("transaction_limit", { precision: 10, scale: 2 }).default("1000.00"),
+  dailyLimit: decimal("daily_limit", { precision: 10, scale: 2 }).default("5000.00"),
+  monthlyLimit: decimal("monthly_limit", { precision: 10, scale: 2 }).default("50000.00"),
+  emailNotifications: boolean("email_notifications").default(true),
+  smsNotifications: boolean("sms_notifications").default(true),
+  marketingEmails: boolean("marketing_emails").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Insert schemas for new tables
+export const insertSavingsGoalSchema = createInsertSchema(savingsGoals).omit({
+  id: true,
+  currentAmount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertQRPaymentSchema = createInsertSchema(qrPayments).omit({
+  id: true,
+  paymentCode: true,
+  createdAt: true,
+  processedAt: true,
+});
+
+export const insertScheduledPaymentSchema = createInsertSchema(scheduledPayments).omit({
+  id: true,
+  createdAt: true,
+  lastPaymentAt: true,
+  totalPaymentsMade: true,
+});
+
+export const insertBudgetSchema = createInsertSchema(budgets).omit({
+  id: true,
+  spentAmount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserPreferencesSchema = createInsertSchema(userPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for new tables
+export type SavingsGoal = typeof savingsGoals.$inferSelect;
+export type InsertSavingsGoal = z.infer<typeof insertSavingsGoalSchema>;
+export type QRPayment = typeof qrPayments.$inferSelect;
+export type InsertQRPayment = z.infer<typeof insertQRPaymentSchema>;
+export type ScheduledPayment = typeof scheduledPayments.$inferSelect;
+export type InsertScheduledPayment = z.infer<typeof insertScheduledPaymentSchema>;
+export type Budget = typeof budgets.$inferSelect;
+export type InsertBudget = z.infer<typeof insertBudgetSchema>;
+export type UserPreferences = typeof userPreferences.$inferSelect;
+export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
