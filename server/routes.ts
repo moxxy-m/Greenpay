@@ -2674,41 +2674,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     LogStreamService.broadcast(LogStreamService.createLogEntry('info', message, 'console'));
   };
 
-  // Enhance existing log middleware to stream API requests
-  app.use((req, res, next) => {
-    const start = Date.now();
-    const path = req.path;
-    let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-    const originalResJson = res.json;
-    res.json = function (bodyJson, ...args) {
-      capturedJsonResponse = bodyJson;
-      return originalResJson.apply(res, [bodyJson, ...args]);
-    };
-
-    res.on("finish", () => {
-      const duration = Date.now() - start;
-      if (path.startsWith("/api") && !path.includes("/ws")) {
-        let logMessage = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-        
-        // Stream API requests as logs
-        LogStreamService.broadcast(LogStreamService.createLogEntry(
-          res.statusCode >= 400 ? 'error' : 'api',
-          logMessage,
-          'api',
-          {
-            method: req.method,
-            path,
-            statusCode: res.statusCode,
-            duration,
-            response: capturedJsonResponse
-          }
-        ));
-      }
-    });
-
-    next();
-  });
+  // Integrate log streaming with existing middleware (handled in index.ts)
+  // Export LogStreamService globally for use by existing middleware
+  (global as any).LogStreamService = LogStreamService;
 
   // Send initial system info
   setTimeout(() => {

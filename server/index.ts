@@ -81,6 +81,23 @@ app.use((req, res, next) => {
       }
 
       log(logLine);
+      
+      // Stream API requests to WebSocket clients if LogStreamService is available
+      const LogStreamService = (global as any).LogStreamService;
+      if (LogStreamService && !path.includes("/ws")) {
+        LogStreamService.broadcast(LogStreamService.createLogEntry(
+          res.statusCode >= 400 ? 'error' : 'api',
+          `${req.method} ${path} ${res.statusCode} in ${duration}ms`,
+          'api',
+          {
+            method: req.method,
+            path,
+            statusCode: res.statusCode,
+            duration,
+            response: capturedJsonResponse
+          }
+        ));
+      }
     }
   });
 
