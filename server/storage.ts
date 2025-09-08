@@ -231,7 +231,7 @@ export class MemStorage implements IStorage {
       id,
       isEmailVerified: false,
       isPhoneVerified: false,
-      kycStatus: "pending",
+      kycStatus: "not_submitted",
       hasVirtualCard: false,
       createdAt: new Date(),
     };

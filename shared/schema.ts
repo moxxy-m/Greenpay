@@ -12,7 +12,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   isEmailVerified: boolean("is_email_verified").default(false),
   isPhoneVerified: boolean("is_phone_verified").default(false),
-  kycStatus: text("kyc_status").default("pending"), // pending, submitted, verified, rejected
+  kycStatus: text("kyc_status").default("not_submitted"), // not_submitted, pending, verified, rejected
   hasVirtualCard: boolean("has_virtual_card").default(false),
   twoFactorSecret: text("two_factor_secret"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),

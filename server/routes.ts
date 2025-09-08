@@ -361,7 +361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.params;
       const kyc = await storage.getKycByUserId(userId);
-      res.json({ kyc: kyc || { status: 'pending', documentType: 'national_id' } });
+      res.json({ kyc });
     } catch (error) {
       console.error('KYC fetch error:', error);
       res.status(500).json({ message: "Failed to fetch KYC data" });
@@ -375,6 +375,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   ]), async (req, res) => {
     try {
       const { userId, documentType, dateOfBirth, address } = req.body;
+      
+      // Check if user has already submitted KYC documents (limit to one submission)
+      const existingKyc = await storage.getKycByUserId(userId);
+      if (existingKyc) {
+        return res.status(400).json({ 
+          message: "KYC documents have already been submitted. Only one submission is allowed." 
+        });
+      }
       
       // Create real KYC document with uploaded files
       const files = req.files as any;
