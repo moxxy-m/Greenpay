@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, X, AlertCircle, CheckCircle, Info, AlertTriangle, BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ export default function Notifications() {
     enabled: !!user?.id,
   });
 
-  const notifications = notificationsData?.notifications || [];
+  const notifications = (notificationsData as any)?.notifications || [];
 
   // Animate new notifications
   useEffect(() => {
