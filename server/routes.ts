@@ -14,6 +14,7 @@ import { payHeroService } from "./services/payhero";
 import { twoFactorService } from "./services/2fa";
 import { biometricService } from "./services/biometric";
 import { notificationService } from "./services/notifications";
+import { logger } from "./services/logger";
 
 // Configure multer for file uploads
 const upload = multer({
@@ -1560,6 +1561,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin Logs
+  // Admin System Logs Routes
+  app.get("/api/admin/system-logs", async (req, res) => {
+    try {
+      const { level, source, userId, limit, search, startDate, endDate } = req.query;
+      
+      const filters: any = {};
+      if (level) filters.level = level as string;
+      if (source) filters.source = source as string;
+      if (userId) filters.userId = userId as string;
+      if (limit) filters.limit = parseInt(limit as string);
+      if (search) filters.search = search as string;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+      
+      const logs = logger.getLogs(filters);
+      res.json({ logs });
+    } catch (error) {
+      console.error('System logs fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch system logs" });
+    }
+  });
+
+  app.get("/api/admin/system-logs/stats", async (req, res) => {
+    try {
+      const stats = logger.getLogStats();
+      res.json({ stats });
+    } catch (error) {
+      console.error('System log stats error:', error);
+      res.status(500).json({ message: "Failed to fetch log statistics" });
+    }
+  });
+
+  app.post("/api/admin/system-logs/clear", async (req, res) => {
+    try {
+      logger.clearLogs();
+      logger.info('System logs cleared', { adminAction: true });
+      res.json({ message: "System logs cleared successfully" });
+    } catch (error) {
+      console.error('Clear logs error:', error);
+      res.status(500).json({ message: "Failed to clear logs" });
+    }
+  });
+
+  // Keep existing admin logs for historical admin actions
   app.get("/api/admin/logs", async (req, res) => {
     try {
       const logs = await storage.getAdminLogs();
