@@ -1612,6 +1612,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/admin/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if user exists
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Delete user and related data
+      await storage.deleteUser(id);
+
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error('Delete user error:', error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
   // Admin user balance management
   app.put("/api/admin/users/:id/balance", async (req, res) => {
     try {

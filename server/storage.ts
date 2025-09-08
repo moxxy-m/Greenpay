@@ -47,6 +47,7 @@ export interface IStorage {
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   updateUserOtp(id: string, otpCode: string, otpExpiry: Date): Promise<User | undefined>;
   verifyUserOtp(id: string, otpCode: string): Promise<boolean>;
+  deleteUser(id: string): Promise<void>;
 
   // KYC operations
   createKycDocument(kyc: InsertKycDocument): Promise<KycDocument>;
@@ -257,6 +258,44 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
 
+  async deleteUser(id: string): Promise<void> {
+    // Delete user and related data
+    this.users.delete(id);
+    
+    // Delete related KYC documents
+    const kyc = Array.from(this.kycDocuments.values()).find(doc => doc.userId === id);
+    if (kyc) {
+      this.kycDocuments.delete(kyc.id);
+    }
+    
+    // Delete related virtual cards
+    const card = Array.from(this.virtualCards.values()).find(c => c.userId === id);
+    if (card) {
+      this.virtualCards.delete(card.id);
+    }
+    
+    // Delete related transactions
+    Array.from(this.transactions.entries()).forEach(([txId, tx]) => {
+      if (tx.userId === id) {
+        this.transactions.delete(txId);
+      }
+    });
+    
+    // Delete related payment requests
+    Array.from(this.paymentRequests.entries()).forEach(([reqId, req]) => {
+      if (req.fromUserId === id) {
+        this.paymentRequests.delete(reqId);
+      }
+    });
+    
+    // Delete related recipients
+    Array.from(this.recipients.entries()).forEach(([recipientId, recipient]) => {
+      if (recipient.userId === id) {
+        this.recipients.delete(recipientId);
+      }
+    });
+  }
+
   // KYC operations
   async createKycDocument(insertKyc: InsertKycDocument): Promise<KycDocument> {
     const id = randomUUID();
@@ -444,6 +483,19 @@ export class DatabaseStorage implements IStorage {
     }
     
     return false;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    // Delete related data first (due to foreign key constraints)
+    await db.delete(kycDocuments).where(eq(kycDocuments.userId, id));
+    await db.delete(virtualCards).where(eq(virtualCards.userId, id));
+    await db.delete(transactions).where(eq(transactions.userId, id));
+    await db.delete(paymentRequests).where(eq(paymentRequests.fromUserId, id));
+    await db.delete(recipients).where(eq(recipients.userId, id));
+    await db.delete(notifications).where(eq(notifications.userId, id));
+    
+    // Finally delete the user
+    await db.delete(users).where(eq(users.id, id));
   }
 
   // KYC operations
