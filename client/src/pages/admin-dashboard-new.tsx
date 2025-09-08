@@ -43,7 +43,7 @@ import PayHeroSettings from "@/components/admin/payhero-settings";
 import WithdrawalManagement from "@/components/admin/withdrawal-management";
 import NotificationManagement from "@/components/admin/notification-management";
 import LogsManagement from "@/components/admin/logs-management";
-import { SimpleStatementManagement } from "@/components/admin/simple-statement-management";
+// import { SimpleStatementManagement } from "@/components/admin/simple-statement-management";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -128,7 +128,39 @@ export default function AdminDashboard() {
       case "logs":
         return <LogsManagement />;
       case "statements":
-        return <SimpleStatementManagement />;
+        return <div className="p-6 space-y-6">
+          <div className="flex items-center space-x-2">
+            <Receipt className="w-6 h-6 text-blue-600" />
+            <h2 className="text-2xl font-bold">Statement Management</h2>
+          </div>
+          
+          <div className="grid gap-4">
+            <div className="bg-card p-6 rounded-xl border border-border">
+              <h3 className="font-semibold mb-4">System-wide Report</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Generate comprehensive PDF report with all transactions, analytics, and system metrics.
+              </p>
+              <button
+                onClick={() => {
+                  window.location.href = '/api/admin/statements/all?adminName=Admin';
+                }}
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+              >
+                Download Admin Report
+              </button>
+            </div>
+            
+            <div className="bg-card p-6 rounded-xl border border-border">
+              <h3 className="font-semibold mb-4">User Reports</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Generate individual user statements. PDF reports will be available soon with enhanced filtering options.
+              </p>
+              <p className="text-xs text-amber-600">
+                Enhanced user selection and date filtering features coming soon.
+              </p>
+            </div>
+          </div>
+        </div>;
       case "payhero":
         return <PayHeroSettings />;
       case "analytics":
