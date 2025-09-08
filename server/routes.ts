@@ -2088,11 +2088,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create transfer transactions
       const now = new Date().toISOString();
-      const transferId = generateId();
+      const transferId = storage.generateTransactionReference();
 
       // Sender transaction (debit)
       const senderTransaction = {
-        id: generateId(),
+        id: storage.generateTransactionReference(),
         userId: fromUserId,
         type: 'send' as const,
         amount: amount,
@@ -2108,7 +2108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Recipient transaction (credit)
       const recipientTransaction = {
-        id: generateId(),
+        id: storage.generateTransactionReference(),
         userId: toUserId,
         type: 'receive' as const,
         amount: amount,
@@ -2467,7 +2467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description,
         fee: fee || '0.00',
         recipientDetails,
-        reference: generateId()
+        reference: storage.generateTransactionReference()
       });
       
       // Send notification to admins about new withdrawal request

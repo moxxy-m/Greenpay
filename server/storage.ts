@@ -611,7 +611,7 @@ export class DatabaseStorage implements IStorage {
     return `12/${expiryYear.toString().slice(-2)}`;
   }
 
-  private generateTransactionReference(): string {
+  generateTransactionReference(): string {
     return 'GP' + Date.now().toString() + Math.random().toString(36).substr(2, 5).toUpperCase();
   }
 
