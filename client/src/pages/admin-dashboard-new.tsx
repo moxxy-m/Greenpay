@@ -23,7 +23,9 @@ import {
   BarChart3,
   Menu,
   X,
-  Smartphone
+  Smartphone,
+  Banknote,
+  Bell
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
@@ -36,6 +38,8 @@ import TransactionManagement from "@/components/admin/transaction-management";
 import VirtualCardManagement from "@/components/admin/virtual-card-management";
 import AdminSettings from "@/components/admin/admin-settings";
 import PayHeroSettings from "@/components/admin/payhero-settings";
+import WithdrawalManagement from "@/components/admin/withdrawal-management";
+import NotificationManagement from "@/components/admin/notification-management";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -91,7 +95,9 @@ export default function AdminDashboard() {
     { id: "users", label: "User Management", icon: Users },
     { id: "kyc", label: "KYC Review", icon: FileCheck },
     { id: "transactions", label: "Transactions", icon: DollarSign },
+    { id: "withdrawals", label: "Withdrawals", icon: Banknote },
     { id: "cards", label: "Virtual Cards", icon: CreditCard },
+    { id: "notifications", label: "Notifications", icon: Bell },
     { id: "payhero", label: "PayHero Settings", icon: Smartphone },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "settings", label: "Settings", icon: Settings },
@@ -107,8 +113,12 @@ export default function AdminDashboard() {
         return <AdminKycTab />;
       case "transactions":
         return <AdminTransactionsTab />;
+      case "withdrawals":
+        return <WithdrawalManagement />;
       case "cards":
         return <AdminCardsTab />;
+      case "notifications":
+        return <NotificationManagement />;
       case "payhero":
         return <PayHeroSettings />;
       case "analytics":
