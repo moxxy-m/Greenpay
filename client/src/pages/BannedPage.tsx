@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,27 @@ export default function BannedPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { toast } = useToast();
   const { user, isLoading } = useAuth();
+
+  // Check if account is already deleted when page loads
+  useEffect(() => {
+    if (user?.id && !isLoading) {
+      // Check if user still exists in the database
+      fetch(`/api/auth/user-exists/${user.id}`)
+        .then(response => response.json())
+        .then(data => {
+          if (!data.exists) {
+            toast({
+              title: "Account Already Deleted",
+              description: "Your account has already been deleted. Redirecting...",
+            });
+            setLocation("/");
+          }
+        })
+        .catch(error => {
+          console.error('Error checking user existence:', error);
+        });
+    }
+  }, [user?.id, isLoading, setLocation, toast]);
 
   const deleteAccountMutation = useMutation({
     mutationFn: async () => {

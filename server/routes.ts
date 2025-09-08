@@ -2392,6 +2392,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check if user still exists
+  app.get("/api/auth/user-exists/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const user = await storage.getUser(userId);
+      res.json({ exists: !!user });
+    } catch (error) {
+      console.error('Error checking user existence:', error);
+      res.json({ exists: false });
+    }
+  });
+
   // Account deletion route for banned users
   app.post("/api/auth/delete-account", async (req, res) => {
     try {
