@@ -23,6 +23,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -36,7 +37,8 @@ import {
   CreditCard,
   FileText,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -68,6 +70,8 @@ export default function UserManagement() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -127,6 +131,29 @@ export default function UserManagement() {
     },
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await apiRequest("DELETE", `/api/admin/users/${userId}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: "User Deleted",
+        description: "User and all related data have been permanently deleted",
+      });
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete user",
+        variant: "destructive",
+      });
+    },
+  });
+
   const getUserStatusBadge = (user: User) => {
     if (!user.isEmailVerified && !user.isPhoneVerified) {
       return <Badge variant="destructive">Blocked</Badge>;
@@ -142,6 +169,17 @@ export default function UserManagement() {
 
   const isUserBlocked = (user: User) => {
     return !user.isEmailVerified && !user.isPhoneVerified;
+  };
+
+  const handleDeleteUser = (user: User) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteUser = () => {
+    if (userToDelete) {
+      deleteUserMutation.mutate(userToDelete.id);
+    }
   };
 
   if (error) {
@@ -305,6 +343,17 @@ export default function UserManagement() {
                               <UserX className="w-4 h-4 text-red-600" />
                             </Button>
                           )}
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUser(user)}
+                            disabled={deleteUserMutation.isPending}
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                            data-testid={`button-delete-user-${user.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -344,6 +393,64 @@ export default function UserManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete User Account
+            </DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete the user account and all associated data including:
+            </DialogDescription>
+          </DialogHeader>
+
+          {userToDelete && (
+            <div className="space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h4 className="font-medium text-red-900 mb-2">User to be deleted:</h4>
+                <div className="space-y-1 text-sm text-red-800">
+                  <p><strong>Name:</strong> {userToDelete.fullName}</p>
+                  <p><strong>Email:</strong> {userToDelete.email}</p>
+                  <p><strong>Phone:</strong> {userToDelete.phone}</p>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-medium text-yellow-900 mb-2">The following data will be permanently deleted:</h4>
+                <ul className="text-sm text-yellow-800 space-y-1">
+                  <li>• User profile and personal information</li>
+                  <li>• All transaction history</li>
+                  <li>• Virtual card information</li>
+                  <li>• KYC documents and verification status</li>
+                  <li>• Payment requests and recipients</li>
+                  <li>• Notifications and preferences</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleteUserMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteUser}
+              disabled={deleteUserMutation.isPending}
+              data-testid="confirm-delete-user"
+            >
+              {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
