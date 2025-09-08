@@ -852,16 +852,21 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUser(userId: string): Promise<boolean> {
     try {
-      // Delete related data first
+      // Delete related data first in correct order
+      console.log('Deleting user data for:', userId);
+      
+      // Delete in order to avoid foreign key constraints
+      await db.delete(notifications).where(eq(notifications.userId, userId));
       await db.delete(transactions).where(eq(transactions.userId, userId));
       await db.delete(virtualCards).where(eq(virtualCards.userId, userId));
       await db.delete(kycDocuments).where(eq(kycDocuments.userId, userId));
       await db.delete(recipients).where(eq(recipients.userId, userId));
       await db.delete(paymentRequests).where(eq(paymentRequests.fromUserId, userId));
-      await db.delete(notifications).where(eq(notifications.userId, userId));
       
-      // Delete the user
+      // Finally delete the user
       await db.delete(users).where(eq(users.id, userId));
+      
+      console.log('User deletion completed successfully');
       return true;
     } catch (error) {
       console.error('Error deleting user:', error);
