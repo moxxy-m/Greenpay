@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { 
   Select,
   SelectContent,
@@ -38,7 +39,14 @@ import {
   FileText,
   Shield,
   AlertTriangle,
-  Trash2
+  Trash2,
+  Users,
+  DollarSign,
+  Plus,
+  Minus,
+  Mail,
+  Phone,
+  Calendar
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -456,84 +464,279 @@ export default function UserManagement() {
 }
 
 function UserDetailsDialog({ user }: { user: User }) {
+  const [balanceUpdate, setBalanceUpdate] = useState("");
+  const [updateType, setUpdateType] = useState<"add" | "subtract" | "set">("add");
+  const [transactionDetails, setTransactionDetails] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const onUpdateBalance = async (user: User) => {
+    if (!balanceUpdate || !transactionDetails) {
+      toast({
+        title: "Error",
+        description: "Please enter both amount and transaction details",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await apiRequest("PUT", `/api/admin/users/${user.id}/balance`, {
+        amount: balanceUpdate,
+        type: updateType,
+        details: transactionDetails,
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Balance Updated",
+          description: `Successfully updated balance for ${user.fullName}`,
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+        setBalanceUpdate("");
+        setTransactionDetails("");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update user balance",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onUpdateCard = async (action: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest("PUT", `/api/admin/users/${user.id}/virtual-card`, {
+        action,
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Card Updated",
+          description: `Successfully ${action}d virtual card for ${user.fullName}`,
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update virtual card",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <h4 className="font-medium text-gray-900 dark:text-white">Personal Information</h4>
-          <div className="mt-2 space-y-2">
-            <div>
-              <span className="text-sm text-gray-500">Full Name:</span>
-              <p className="text-sm font-medium">{user.fullName}</p>
-            </div>
-            <div>
-              <span className="text-sm text-gray-500">Email:</span>
-              <p className="text-sm font-medium">{user.email}</p>
-            </div>
-            <div>
-              <span className="text-sm text-gray-500">Phone:</span>
-              <p className="text-sm font-medium">{user.phone}</p>
-            </div>
-            <div>
-              <span className="text-sm text-gray-500">Country:</span>
-              <p className="text-sm font-medium">{user.country}</p>
+      {/* Basic Information */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Personal Information
+            </h4>
+            <div className="space-y-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Full Name:</span>
+                <span className="text-sm font-medium">{user.fullName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Email:</span>
+                <span className="text-sm font-medium break-all">{user.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Phone:</span>
+                <span className="text-sm font-medium">{user.phone}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Country:</span>
+                <span className="text-sm font-medium">{user.country}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Member Since:</span>
+                <span className="text-sm font-medium">
+                  {format(new Date(user.createdAt), "MMM dd, yyyy")}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div>
-          <h4 className="font-medium text-gray-900 dark:text-white">Account Status</h4>
-          <div className="mt-2 space-y-2">
-            <div>
-              <span className="text-sm text-gray-500">Email Verified:</span>
-              <Badge variant={user.isEmailVerified ? "default" : "secondary"} className="ml-2">
-                {user.isEmailVerified ? "Yes" : "No"}
-              </Badge>
-            </div>
-            <div>
-              <span className="text-sm text-gray-500">Phone Verified:</span>
-              <Badge variant={user.isPhoneVerified ? "default" : "secondary"} className="ml-2">
-                {user.isPhoneVerified ? "Yes" : "No"}
-              </Badge>
-            </div>
-            <div>
-              <span className="text-sm text-gray-500">KYC Status:</span>
-              <Badge variant={user.kycStatus === "verified" ? "default" : "secondary"} className="ml-2">
-                {user.kycStatus}
-              </Badge>
-            </div>
-            <div>
-              <span className="text-sm text-gray-500">Virtual Card:</span>
-              <Badge variant={user.hasVirtualCard ? "default" : "secondary"} className="ml-2">
-                {user.hasVirtualCard ? "Active" : "None"}
-              </Badge>
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Account Status
+            </h4>
+            <div className="space-y-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Email Status:</span>
+                <Badge variant={user.isEmailVerified ? "default" : "secondary"}>
+                  {user.isEmailVerified ? "Verified" : "Unverified"}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Phone Status:</span>
+                <Badge variant={user.isPhoneVerified ? "default" : "secondary"}>
+                  {user.isPhoneVerified ? "Verified" : "Unverified"}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400">KYC Status:</span>
+                <Badge variant={user.kycStatus === "verified" ? "default" : user.kycStatus === "pending" ? "secondary" : "destructive"}>
+                  {user.kycStatus}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Virtual Card:</span>
+                <Badge variant={user.hasVirtualCard ? "default" : "outline"}>
+                  {user.hasVirtualCard ? "Active" : "None"}
+                </Badge>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Balance Management */}
       <div>
-        <h4 className="font-medium text-gray-900 dark:text-white mb-2">Account Balance</h4>
-        <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <p className="text-2xl font-bold">${user.balance || "0.00"}</p>
-          <p className="text-sm text-gray-500">Available Balance</p>
+        <h4 className="font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <DollarSign className="w-4 h-4" />
+          Balance Management
+        </h4>
+        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+          <div className="mb-4">
+            <Label>Current Balance</Label>
+            <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+              ${user.balance || "0.00"}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <Label htmlFor="update-type">Action</Label>
+              <Select value={updateType} onValueChange={(value: "add" | "subtract" | "set") => setUpdateType(value)}>
+                <SelectTrigger data-testid="select-balance-action">
+                  <SelectValue placeholder="Select action" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="add">Add Balance</SelectItem>
+                  <SelectItem value="subtract">Subtract Balance</SelectItem>
+                  <SelectItem value="set">Set Balance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label htmlFor="balance-amount">Amount ($)</Label>
+              <Input
+                id="balance-amount"
+                type="number"
+                step="0.01"
+                value={balanceUpdate}
+                onChange={(e) => setBalanceUpdate(e.target.value)}
+                placeholder="0.00"
+                data-testid="input-balance-amount"
+              />
+            </div>
+          </div>
+          
+          <div className="mb-4">
+            <Label htmlFor="transaction-details">Transaction Details</Label>
+            <Input
+              id="transaction-details"
+              type="text"
+              value={transactionDetails}
+              onChange={(e) => setTransactionDetails(e.target.value)}
+              placeholder="Enter description for transaction history (e.g., Admin adjustment, Bonus payment, Refund)"
+              data-testid="input-transaction-details"
+            />
+          </div>
+          
+          <div className="flex justify-end">
+            <Button
+              onClick={() => onUpdateBalance(user)}
+              disabled={isLoading || !balanceUpdate}
+              className="w-full"
+              data-testid="button-update-balance"
+            >
+              {isLoading ? "Updating..." : "Update Balance"}
+            </Button>
+          </div>
         </div>
       </div>
 
+      {/* Virtual Card Management */}
       <div>
-        <h4 className="font-medium text-gray-900 dark:text-white mb-2">Quick Actions</h4>
+        <h4 className="font-medium text-gray-900 dark:text-white mb-4">Virtual Card Management</h4>
+        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-blue-600" />
+              <span>Card Status: </span>
+              {user.hasVirtualCard ? (
+                <Badge variant={user.cardStatus === "active" ? "default" : "destructive"}>
+                  {user.cardStatus}
+                </Badge>
+              ) : (
+                <Badge variant="outline">No Card</Badge>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            {!user.hasVirtualCard ? (
+              <Button
+                onClick={() => onUpdateCard("issue")}
+                disabled={isLoading}
+                variant="default"
+                data-testid="button-issue-card"
+              >
+                <CreditCard className="w-4 h-4 mr-2" />
+                Issue Virtual Card
+              </Button>
+            ) : (
+              <>
+                <Button
+                  onClick={() => onUpdateCard(user.cardStatus === "active" ? "deactivate" : "activate")}
+                  disabled={isLoading}
+                  variant={user.cardStatus === "active" ? "destructive" : "default"}
+                  data-testid="button-toggle-card"
+                >
+                  {user.cardStatus === "active" ? "Deactivate Card" : "Activate Card"}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Security Actions */}
+      <div>
+        <h4 className="font-medium text-gray-900 dark:text-white mb-4">Security Actions</h4>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <FileText className="w-4 h-4 mr-2" />
-            View KYC
+          <Button
+            variant="outline"
+            size="sm"
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            Reset 2FA
           </Button>
-          <Button variant="outline" size="sm">
-            <CreditCard className="w-4 h-4 mr-2" />
-            View Transactions
-          </Button>
-          <Button variant="outline" size="sm">
-            <AlertTriangle className="w-4 h-4 mr-2" />
-            Reset Password
+          <Button
+            variant="outline"
+            size="sm"
+          >
+            <Mail className="w-4 h-4 mr-2" />
+            Send Verification Email
           </Button>
         </div>
       </div>
