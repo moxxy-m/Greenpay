@@ -50,7 +50,7 @@ export default function NotificationManagement() {
     queryKey: ["/api/admin/notifications"],
   });
 
-  const notifications = notificationsData?.notifications || [];
+  const notifications = Array.isArray(notificationsData?.notifications) ? notificationsData.notifications : [];
 
   const form = useForm<BroadcastForm>({
     resolver: zodResolver(broadcastSchema),

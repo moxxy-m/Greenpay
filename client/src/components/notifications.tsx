@@ -23,10 +23,12 @@ export default function Notifications() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: notifications = [], isLoading } = useQuery({
+  const { data: notificationsData, isLoading } = useQuery({
     queryKey: ['/api/notifications', user?.id],
     enabled: !!user?.id,
   });
+
+  const notifications = notificationsData?.notifications || [];
 
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: string) => {
