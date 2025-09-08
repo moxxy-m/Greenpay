@@ -277,8 +277,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Phone number is required for M-Pesa payments. Please update your profile." });
       }
 
-      // Convert $15 USD to KES (75% off from original $60)
-      const usdAmount = 15;
+      // Get current card price from system settings
+      const cardPriceSetting = await storage.getSystemSetting("virtual_card", "price");
+      const usdAmount = parseFloat(cardPriceSetting?.value || "60.00");
       const kesAmount = await payHeroService.convertUSDtoKES(usdAmount);
       
       console.log(`Converting $${usdAmount} USD to ${kesAmount} KES for card purchase`);

@@ -131,8 +131,8 @@ export default function KYCPage() {
     );
   }
 
-  // Handle pending status - restrict multiple submissions
-  if (user?.kycStatus === "pending" || kycData) {
+  // Handle users who have actually submitted documents and are awaiting review
+  if (kycData && user?.kycStatus === "pending") {
     return (
       <div className="min-h-screen bg-background pb-20">
         <motion.div className="bg-card shadow-sm p-4 flex items-center elevation-1">
