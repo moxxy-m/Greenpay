@@ -45,6 +45,7 @@ export interface IStorage {
   getUserByPhone(phone: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<void>;
   updateUserOtp(id: string, otpCode: string, otpExpiry: Date): Promise<User | undefined>;
   verifyUserOtp(id: string, otpCode: string): Promise<boolean>;
 
@@ -415,6 +416,17 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return user || undefined;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    // Delete user and all related data
+    await db.delete(kycDocuments).where(eq(kycDocuments.userId, id));
+    await db.delete(virtualCards).where(eq(virtualCards.userId, id));
+    await db.delete(transactions).where(eq(transactions.userId, id));
+    await db.delete(paymentRequests).where(eq(paymentRequests.fromUserId, id));
+    await db.delete(notifications).where(eq(notifications.userId, id));
+    await db.delete(recipients).where(eq(recipients.userId, id));
+    await db.delete(users).where(eq(users.id, id));
   }
 
   async updateUserOtp(id: string, otpCode: string, otpExpiry: Date): Promise<User | undefined> {
