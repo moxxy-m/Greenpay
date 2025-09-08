@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { insertUserSchema, insertKycDocumentSchema, insertTransactionSchema, insertPaymentRequestSchema, insertRecipientSchema } from "@shared/schema";
 import { z } from "zod";
@@ -2086,11 +2087,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create transfer transactions
       const now = new Date().toISOString();
-      const transferId = generateId();
+      const transferId = randomUUID();
 
       // Sender transaction (debit)
       const senderTransaction = {
-        id: generateId(),
+        id: randomUUID(),
         userId: fromUserId,
         type: 'send' as const,
         amount: amount,
@@ -2106,7 +2107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Recipient transaction (credit)
       const recipientTransaction = {
-        id: generateId(),
+        id: randomUUID(),
         userId: toUserId,
         type: 'receive' as const,
         amount: amount,
@@ -2428,7 +2429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description,
         fee: fee || '0.00',
         recipientDetails,
-        reference: generateId()
+        reference: randomUUID()
       });
       
       // Send notification to admins about new withdrawal request
