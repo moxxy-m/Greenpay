@@ -27,12 +27,14 @@ import KycPage from "@/pages/kyc";
 import LoadingScreen from "@/components/loading-screen";
 import BottomNavigation from "@/components/bottom-navigation";
 import { PWAInstallPrompt } from "@/components/pwa-install";
+import BanCheck from "@/components/BanCheck";
 import PaymentCallbackPage from "@/pages/payment-callback";
 import PaymentSuccessPage from "@/pages/payment-success";
 import PaymentFailedPage from "@/pages/payment-failed";
 import PaymentProcessingPage from "@/pages/payment-processing";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard-new";
+import BannedPage from "@/pages/BannedPage";
 
 function Router() {
   return (
@@ -61,6 +63,7 @@ function Router() {
       <Route path="/admin-dashboard" component={AdminDashboard} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
+      <Route path="/banned" component={BannedPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -73,9 +76,11 @@ function App() {
         <TooltipProvider>
           <LoadingScreen />
           <Toaster />
-          <Router />
-          <BottomNavigation />
-          <PWAInstallPrompt />
+          <BanCheck>
+            <Router />
+            <BottomNavigation />
+            <PWAInstallPrompt />
+          </BanCheck>
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
