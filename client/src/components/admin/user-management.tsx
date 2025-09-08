@@ -46,7 +46,16 @@ import {
   Minus,
   Mail,
   Phone,
-  Calendar
+  Calendar,
+  Lock,
+  Unlock,
+  LogOut,
+  Bell,
+  BellOff,
+  Key,
+  Settings,
+  Activity,
+  Download
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -64,6 +73,13 @@ interface User {
   hasVirtualCard: boolean;
   balance: string;
   createdAt: string;
+  twoFactorEnabled: boolean;
+  pushNotificationsEnabled: boolean;
+  defaultCurrency: string;
+  cardStatus?: string; // Virtual card status if user has one
+  isBlocked?: boolean; // Account suspension status
+  lastLoginAt?: string; // Last login timestamp
+  totalTransactions?: number; // Total transaction count
 }
 
 interface UsersResponse {
@@ -684,8 +700,8 @@ function UserDetailsDialog({ user }: { user: User }) {
               <CreditCard className="w-5 h-5 text-blue-600" />
               <span>Card Status: </span>
               {user.hasVirtualCard ? (
-                <Badge variant={user.cardStatus === "active" ? "default" : "destructive"}>
-                  {user.cardStatus}
+                <Badge variant={user.cardStatus === "active" ? "default" : user.cardStatus === "frozen" ? "destructive" : "secondary"}>
+                  {user.cardStatus || "active"}
                 </Badge>
               ) : (
                 <Badge variant="outline">No Card</Badge>
@@ -707,12 +723,20 @@ function UserDetailsDialog({ user }: { user: User }) {
             ) : (
               <>
                 <Button
-                  onClick={() => onUpdateCard(user.cardStatus === "active" ? "deactivate" : "activate")}
+                  onClick={() => onUpdateCard(user.cardStatus === "active" ? "freeze" : "activate")}
                   disabled={isLoading}
                   variant={user.cardStatus === "active" ? "destructive" : "default"}
                   data-testid="button-toggle-card"
                 >
-                  {user.cardStatus === "active" ? "Deactivate Card" : "Activate Card"}
+                  {user.cardStatus === "active" ? "Freeze Card" : "Activate Card"}
+                </Button>
+                <Button
+                  onClick={() => onUpdateCard("inactive")}
+                  disabled={isLoading}
+                  variant="outline"
+                  data-testid="button-set-card-inactive"
+                >
+                  Set Inactive
                 </Button>
               </>
             )}
