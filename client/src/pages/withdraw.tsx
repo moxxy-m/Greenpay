@@ -87,15 +87,17 @@ export default function WithdrawPage() {
     },
     onSuccess: (data) => {
       toast({
-        title: "Withdrawal successful!",
-        description: `$${form.getValues("amount")} has been withdrawn from your account.`,
+        title: "Withdrawal Request Submitted!",
+        description: data.message || "Your withdrawal request is being reviewed and will be processed within 1-3 business days.",
       });
+      form.reset();
       setLocation("/dashboard");
     },
-    onError: () => {
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.message || "Unable to process withdrawal. Please try again.";
       toast({
         title: "Withdrawal failed",
-        description: "Unable to process withdrawal. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     },

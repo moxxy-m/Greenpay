@@ -2067,14 +2067,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check sender's balance
-      const senderTransactions = await storage.getTransactions(fromUserId);
+      const senderTransactions = await storage.getTransactionsByUserId(fromUserId);
       const senderBalance = senderTransactions.reduce((balance, txn) => {
         if (txn.status === 'completed') {
           if (txn.type === 'receive' || txn.type === 'deposit') {
             return balance + parseFloat(txn.amount);
-          } else if (txn.type === 'send' || txn.type === 'card_purchase') {
+          } else if (txn.type === 'send' || txn.type === 'withdraw') {
             return balance - parseFloat(txn.amount) - parseFloat(txn.fee || '0');
           }
+          // card_purchase not deducted from balance (paid via M-Pesa)
         }
         return balance;
       }, parseFloat(fromUser.balance || '0'));
@@ -2162,6 +2163,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error marking notification as read:', error);
       res.status(500).json({ message: "Error updating notification" });
+    }
+  });
+
+  // Admin withdrawal management endpoints
+  app.get("/api/admin/withdrawals", async (req, res) => {
+    try {
+      const transactions = await storage.getAllTransactions();
+      const withdrawals = transactions.filter(t => t.type === 'withdraw');
+      
+      // Get user info for each withdrawal
+      const withdrawalsWithUserInfo = await Promise.all(
+        withdrawals.map(async (withdrawal) => {
+          const user = await storage.getUserById(withdrawal.userId);
+          return {
+            ...withdrawal,
+            userInfo: {
+              fullName: user?.fullName || 'Unknown',
+              email: user?.email || 'Unknown',
+              phone: user?.phone || 'Unknown'
+            }
+          };
+        })
+      );
+      
+      res.json({ withdrawals: withdrawalsWithUserInfo });
+    } catch (error) {
+      console.error('Error fetching withdrawals:', error);
+      res.status(500).json({ message: "Error fetching withdrawal requests" });
+    }
+  });
+
+  app.post("/api/admin/withdrawals/:id/approve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { adminNotes } = req.body;
+      
+      const transaction = await storage.updateTransaction(id, {
+        status: 'completed',
+        adminNotes: adminNotes || 'Approved by admin',
+        processedAt: new Date()
+      });
+      
+      if (transaction) {
+        // Notify user
+        const user = await storage.getUserById(transaction.userId);
+        if (user) {
+          await notificationService.sendNotification({
+            title: "Withdrawal Approved",
+            body: `Your withdrawal of ${transaction.currency} ${transaction.amount} has been approved and processed.`,
+            userId: user.id,
+            type: "transaction"
+          });
+        }
+      }
+      
+      res.json({ transaction, message: "Withdrawal approved successfully" });
+    } catch (error) {
+      console.error('Error approving withdrawal:', error);
+      res.status(500).json({ message: "Error approving withdrawal" });
+    }
+  });
+
+  app.post("/api/admin/withdrawals/:id/reject", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { adminNotes } = req.body;
+      
+      const transaction = await storage.updateTransaction(id, {
+        status: 'failed',
+        adminNotes: adminNotes || 'Rejected by admin',
+        processedAt: new Date()
+      });
+      
+      if (transaction) {
+        // Notify user
+        const user = await storage.getUserById(transaction.userId);
+        if (user) {
+          await notificationService.sendNotification({
+            title: "Withdrawal Rejected",
+            body: `Your withdrawal request has been rejected. ${adminNotes || 'Please contact support for details.'}`,
+            userId: user.id,
+            type: "transaction"
+          });
+        }
+      }
+      
+      res.json({ transaction, message: "Withdrawal rejected" });
+    } catch (error) {
+      console.error('Error rejecting withdrawal:', error);
+      res.status(500).json({ message: "Error rejecting withdrawal" });
     }
   });
 
@@ -2279,6 +2370,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Transaction status check error:', error);
       res.status(500).json({ message: "Error checking transaction status" });
+    }
+  });
+
+  // Withdrawal endpoint
+  app.post("/api/transactions", async (req, res) => {
+    try {
+      const { userId, type, amount, currency, description, fee, recipientDetails } = req.body;
+      
+      if (type !== 'withdraw') {
+        return res.status(400).json({ message: "This endpoint only handles withdrawal requests" });
+      }
+      
+      const withdrawAmount = parseFloat(amount);
+      const withdrawFee = parseFloat(fee || '0');
+      
+      if (withdrawAmount <= 0) {
+        return res.status(400).json({ message: "Invalid withdrawal amount" });
+      }
+      
+      // Get user
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Calculate real-time balance (same logic as frontend)
+      const userTransactions = await storage.getTransactionsByUserId(userId);
+      const realTimeBalance = userTransactions.reduce((balance: number, txn: any) => {
+        if (txn.status === 'completed') {
+          if (txn.type === 'receive' || txn.type === 'deposit') {
+            return balance + parseFloat(txn.amount);
+          } else if (txn.type === 'send' || txn.type === 'withdraw') {
+            return balance - parseFloat(txn.amount) - parseFloat(txn.fee || '0');
+          }
+          // card_purchase not deducted from balance (paid via M-Pesa)
+        }
+        return balance;
+      }, parseFloat(user.balance || '0'));
+      
+      // Check sufficient balance
+      if (realTimeBalance < withdrawAmount + withdrawFee) {
+        return res.status(400).json({ 
+          message: "Insufficient balance",
+          available: realTimeBalance.toFixed(2),
+          required: (withdrawAmount + withdrawFee).toFixed(2)
+        });
+      }
+      
+      // Create withdrawal transaction with pending status
+      const transaction = await storage.createTransaction({
+        userId,
+        type: 'withdraw' as const,
+        amount: amount,
+        currency,
+        status: 'pending' as const, // Withdrawals start as pending for admin approval
+        description,
+        fee: fee || '0.00',
+        recipientDetails,
+        reference: generateId()
+      });
+      
+      // Send notification to admins about new withdrawal request
+      await notificationService.sendNotification({
+        title: "Withdrawal Request",
+        body: `New withdrawal request: ${currency} ${amount} from ${user.fullName}`,
+        userId: userId, // This will be extended to notify admins too
+        type: "transaction"
+      });
+      
+      res.json({ 
+        transaction,
+        message: "Withdrawal request submitted successfully. It will be processed within 1-3 business days."
+      });
+    } catch (error) {
+      console.error('Withdrawal error:', error);
+      res.status(500).json({ message: "Error processing withdrawal request" });
     }
   });
 
