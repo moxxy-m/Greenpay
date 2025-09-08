@@ -2401,10 +2401,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Terms must be accepted to delete account" });
       }
 
-      // Verify user is banned
+      // Check if user exists
       const user = await storage.getUser(userId);
       if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        // User already deleted - return success with redirect flag
+        return res.json({ 
+          success: true, 
+          alreadyDeleted: true,
+          message: "Account has already been deleted. Thank you for using GreenPay." 
+        });
       }
 
       if (!user.isBanned) {

@@ -24,15 +24,24 @@ export default function BannedPage() {
       });
       return response.json();
     },
-    onSuccess: () => {
-      toast({
-        title: "Account Deleted",
-        description: "Your account has been permanently deleted.",
-      });
-      // Redirect to landing page after successful deletion
-      setTimeout(() => {
-        setLocation("/landing");
-      }, 2000);
+    onSuccess: (data) => {
+      if (data.alreadyDeleted) {
+        // Account was already deleted
+        toast({
+          title: "Account Already Deleted",
+          description: data.message || "Your account has already been deleted.",
+        });
+        setLocation("/");
+      } else {
+        // Account just deleted
+        toast({
+          title: "Account Deleted",
+          description: "Your account has been permanently deleted.",
+        });
+        setTimeout(() => {
+          setLocation("/");
+        }, 2000);
+      }
     },
     onError: (error: any) => {
       toast({
