@@ -28,20 +28,6 @@ body, html {
   overflow-x: hidden;
 }
 
-/* Gradient utility classes for homepage */
-.bg-gradient-to-br {
-  background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
-}
-
-.from-primary {
-  --tw-gradient-from: hsl(122, 39%, 49%);
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, hsl(122, 39%, 49% / 0));
-}
-
-.to-secondary {
-  --tw-gradient-to: hsl(174, 100%, 29%);
-}
-
 :root {
   --background: hsl(120, 20%, 98%);
   --foreground: hsl(120, 10%, 15%);

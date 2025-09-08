@@ -96,28 +96,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get current user profile
-  app.get("/api/auth/profile", async (req, res) => {
-    try {
-      const userId = (req.session as any)?.userId;
-      if (!userId) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      // Remove password from response
-      const { password, ...userResponse } = user;
-      res.json({ user: userResponse });
-    } catch (error) {
-      console.error('Profile fetch error:', error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
@@ -2345,80 +2323,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error deleting notification" });
     }
   });
-
-  // Admin delete user account
-  app.delete("/api/admin/users/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // Verify user exists
-      const user = await storage.getUser(id);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      // Delete user and all related data
-      const deleted = await storage.deleteUser(id);
-      if (!deleted) {
-        return res.status(500).json({ message: "Failed to delete user account" });
-      }
-
-      res.json({ 
-        success: true,
-        message: "User account deleted successfully" 
-      });
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      res.status(500).json({ message: "Error deleting user account" });
-    }
-  });
-
-  // Admin toggle user card status
-  app.put("/api/admin/users/:id/card-status", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { action } = req.body;
-      
-      if (!action || !['activate', 'deactivate'].includes(action)) {
-        return res.status(400).json({ message: "Invalid action. Must be 'activate' or 'deactivate'" });
-      }
-
-      // Verify user exists
-      const user = await storage.getUser(id);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      // Update user's virtual card status
-      const hasVirtualCard = action === 'activate';
-      const updatedUser = await storage.updateUser(id, { hasVirtualCard });
-      if (!updatedUser) {
-        return res.status(500).json({ message: "Failed to update card status" });
-      }
-
-      res.json({ 
-        success: true,
-        message: `Virtual card ${action}d successfully`,
-        user: updatedUser
-      });
-    } catch (error) {
-      console.error('Error updating card status:', error);
-      res.status(500).json({ message: "Error updating card status" });
-    }
-  });
-
-  // Check if user still exists
-  app.get("/api/auth/user-exists/:userId", async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const user = await storage.getUser(userId);
-      res.json({ exists: !!user });
-    } catch (error) {
-      console.error('Error checking user existence:', error);
-      res.json({ exists: false });
-    }
-  });
-
 
   // System logs endpoints
   app.get("/api/admin/system-logs", async (req, res) => {

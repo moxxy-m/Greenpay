@@ -27,7 +27,6 @@ import KycPage from "@/pages/kyc";
 import LoadingScreen from "@/components/loading-screen";
 import BottomNavigation from "@/components/bottom-navigation";
 import { PWAInstallPrompt } from "@/components/pwa-install";
-import BanCheck from "@/components/BanCheck";
 import PaymentCallbackPage from "@/pages/payment-callback";
 import PaymentSuccessPage from "@/pages/payment-success";
 import PaymentFailedPage from "@/pages/payment-failed";
@@ -38,14 +37,7 @@ import AdminDashboard from "@/pages/admin-dashboard-new";
 function Router() {
   return (
     <Switch>
-      <Route path="/landing" component={SplashPage} />
-      <Route path="/">
-        {() => {
-          // Force redirect to landing page
-          window.location.replace("/landing");
-          return null;
-        }}
-      </Route>
+      <Route path="/" component={SplashPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
       <Route path="/dashboard" component={DashboardPage} />
@@ -81,11 +73,9 @@ function App() {
         <TooltipProvider>
           <LoadingScreen />
           <Toaster />
-          <BanCheck>
-            <Router />
-            <BottomNavigation />
-            <PWAInstallPrompt />
-          </BanCheck>
+          <Router />
+          <BottomNavigation />
+          <PWAInstallPrompt />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

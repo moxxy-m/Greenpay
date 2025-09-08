@@ -114,9 +114,6 @@ export interface IStorage {
   getUsersCount(): Promise<number>;
   getTransactionsCount(): Promise<number>;
   getTotalVolume(): Promise<{ volume: number; revenue: number }>;
-  banUser(userId: string, reason: string, adminId: string | null): Promise<User | undefined>;
-  unbanUser(userId: string): Promise<User | undefined>;
-  deleteUser(userId: string): Promise<boolean>;
   
   // Notification operations
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -819,59 +816,6 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(notifications)
       .where(eq(notifications.id, id));
-  }
-
-  // User ban operations
-  async banUser(userId: string, reason: string, adminId: string | null): Promise<User | undefined> {
-    const [user] = await db
-      .update(users)
-      .set({
-        isBanned: true,
-        banReason: reason,
-        bannedAt: new Date(),
-        bannedBy: adminId
-      })
-      .where(eq(users.id, userId))
-      .returning();
-    return user || undefined;
-  }
-
-  async unbanUser(userId: string): Promise<User | undefined> {
-    const [user] = await db
-      .update(users)
-      .set({
-        isBanned: false,
-        banReason: null,
-        bannedAt: null,
-        bannedBy: null
-      })
-      .where(eq(users.id, userId))
-      .returning();
-    return user || undefined;
-  }
-
-  async deleteUser(userId: string): Promise<boolean> {
-    try {
-      // Delete related data first in correct order
-      console.log('Deleting user data for:', userId);
-      
-      // Delete in order to avoid foreign key constraints
-      await db.delete(notifications).where(eq(notifications.userId, userId));
-      await db.delete(transactions).where(eq(transactions.userId, userId));
-      await db.delete(virtualCards).where(eq(virtualCards.userId, userId));
-      await db.delete(kycDocuments).where(eq(kycDocuments.userId, userId));
-      await db.delete(recipients).where(eq(recipients.userId, userId));
-      await db.delete(paymentRequests).where(eq(paymentRequests.fromUserId, userId));
-      
-      // Finally delete the user
-      await db.delete(users).where(eq(users.id, userId));
-      
-      console.log('User deletion completed successfully');
-      return true;
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      return false;
-    }
   }
 }
 

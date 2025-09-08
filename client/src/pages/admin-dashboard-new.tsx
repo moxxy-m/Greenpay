@@ -32,6 +32,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import UserManagement from "@/components/admin/user-management";
+import EnhancedUserManagement from "@/components/admin/enhanced-user-management";
 import KycManagement from "@/components/admin/kyc-management";
 import TransactionManagement from "@/components/admin/transaction-management";
 import VirtualCardManagement from "@/components/admin/virtual-card-management";
@@ -414,7 +415,7 @@ function AdminDashboardTab({ dashboardData }: { dashboardData?: DashboardData })
             </Button>
             <Button variant="outline" className="h-20 flex-col gap-2">
               <UserX className="w-6 h-6" />
-              <span className="text-sm">Ban User</span>
+              <span className="text-sm">Block User</span>
             </Button>
             <Button variant="outline" className="h-20 flex-col gap-2">
               <CreditCard className="w-6 h-6" />
@@ -432,7 +433,7 @@ function AdminDashboardTab({ dashboardData }: { dashboardData?: DashboardData })
 }
 
 function AdminUsersTab() {
-  return <UserManagement />;
+  return <EnhancedUserManagement />;
 }
 
 function AdminKycTab() {

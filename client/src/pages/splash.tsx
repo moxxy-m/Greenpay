@@ -70,16 +70,6 @@ export default function SplashPage() {
           >
             Create Account
           </motion.button>
-          
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setLocation("/support")}
-            className="w-full text-white/70 font-medium py-2 px-4 rounded-lg transition-all duration-200 hover:text-white hover:bg-white/10 mt-4"
-            data-testid="button-get-back-to-us"
-          >
-            Get Back to Us
-          </motion.button>
         </motion.div>
       </div>
 
