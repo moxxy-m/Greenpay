@@ -42,6 +42,56 @@ const transferSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize logging
+  logger.info('GreenPay server starting up', { source: 'system' });
+
+  // Request logging middleware - capture all HTTP requests
+  app.use((req, res, next) => {
+    const startTime = Date.now();
+    
+    // Capture response end to log completion
+    const originalSend = res.send;
+    res.send = function(body) {
+      const duration = Date.now() - startTime;
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: true });
+      
+      // Log in the same format as deployment console
+      let responseData = '';
+      if (body && typeof body === 'string') {
+        try {
+          const parsed = JSON.parse(body);
+          // Truncate long responses for readability
+          const truncated = JSON.stringify(parsed).substring(0, 100);
+          responseData = truncated.length < JSON.stringify(parsed).length ? 
+            `${truncated}...` : truncated;
+        } catch {
+          responseData = body.substring(0, 100);
+        }
+      }
+      
+      console.log(`${timestamp} [express] ${req.method} ${req.originalUrl} ${res.statusCode} in ${duration}ms :: ${responseData}`);
+      
+      // Also log to our structured logging system
+      logger.info(`${req.method} ${req.originalUrl}`, {
+        method: req.method,
+        url: req.originalUrl,
+        statusCode: res.statusCode,
+        duration: `${duration}ms`,
+        ip: req.ip,
+        userAgent: req.get('User-Agent')
+      }, { 
+        source: 'api', 
+        ip: req.ip, 
+        userAgent: req.get('User-Agent'),
+        userId: (req.session as any)?.userId 
+      });
+      
+      return originalSend.call(this, body);
+    };
+    
+    next();
+  });
+
   // Health check endpoint - must be defined early to avoid catch-all routes
   app.get("/health", (_req, res) => {
     res.status(200).json({ 
@@ -51,9 +101,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       uptime: process.uptime()
     });
   });
-
-  // Initialize logging
-  logger.info('GreenPay server starting up', { source: 'system' });
 
   // Create default admin account if none exists
   try {
