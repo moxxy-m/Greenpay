@@ -43,7 +43,6 @@ import PayHeroSettings from "@/components/admin/payhero-settings";
 import WithdrawalManagement from "@/components/admin/withdrawal-management";
 import NotificationManagement from "@/components/admin/notification-management";
 import LogsManagement from "@/components/admin/logs-management";
-// import { SimpleStatementManagement } from "@/components/admin/simple-statement-management";
 
 interface DashboardMetrics {
   totalUsers: number;

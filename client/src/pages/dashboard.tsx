@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Notifications from "@/components/notifications";
-// import { SimpleStatementDownload } from "@/components/simple-statement-download";
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
