@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { insertUserSchema, insertKycDocumentSchema, insertTransactionSchema, insertPaymentRequestSchema, insertRecipientSchema } from "@shared/schema";
 import { z } from "zod";
@@ -2584,6 +2585,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // Set up WebSocket server for real-time log streaming
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws/logs' });
+  
+  // Store for connected log clients
+  const logClients = new Set<WebSocket>();
+  
+  // Log streaming service
+  class LogStreamService {
+    static broadcast(logEntry: any) {
+      const message = JSON.stringify(logEntry);
+      logClients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          try {
+            client.send(message);
+          } catch (error) {
+            console.error('Error sending log to client:', error);
+            logClients.delete(client);
+          }
+        } else {
+          logClients.delete(client);
+        }
+      });
+    }
+
+    static createLogEntry(level: string, message: string, source?: string, data?: any) {
+      return {
+        id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: new Date().toISOString(),
+        level,
+        message,
+        source,
+        data
+      };
+    }
+  }
+
+  // Handle WebSocket connections for logs
+  wss.on('connection', (ws) => {
+    console.log('Log client connected');
+    logClients.add(ws);
+    
+    // Send welcome message
+    ws.send(JSON.stringify(
+      LogStreamService.createLogEntry('info', 'Connected to log stream', 'websocket')
+    ));
+
+    ws.on('close', () => {
+      console.log('Log client disconnected');
+      logClients.delete(ws);
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      logClients.delete(ws);
+    });
+  });
+
+  // Override console methods to capture logs
+  const originalConsoleLog = console.log;
+  const originalConsoleError = console.error;
+  const originalConsoleWarn = console.warn;
+  const originalConsoleInfo = console.info;
+
+  console.log = (...args: any[]) => {
+    originalConsoleLog(...args);
+    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+    LogStreamService.broadcast(LogStreamService.createLogEntry('info', message, 'console'));
+  };
+
+  console.error = (...args: any[]) => {
+    originalConsoleError(...args);
+    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+    LogStreamService.broadcast(LogStreamService.createLogEntry('error', message, 'console'));
+  };
+
+  console.warn = (...args: any[]) => {
+    originalConsoleWarn(...args);
+    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+    LogStreamService.broadcast(LogStreamService.createLogEntry('warn', message, 'console'));
+  };
+
+  console.info = (...args: any[]) => {
+    originalConsoleInfo(...args);
+    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+    LogStreamService.broadcast(LogStreamService.createLogEntry('info', message, 'console'));
+  };
+
+  // Enhance existing log middleware to stream API requests
+  app.use((req, res, next) => {
+    const start = Date.now();
+    const path = req.path;
+    let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+    const originalResJson = res.json;
+    res.json = function (bodyJson, ...args) {
+      capturedJsonResponse = bodyJson;
+      return originalResJson.apply(res, [bodyJson, ...args]);
+    };
+
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      if (path.startsWith("/api") && !path.includes("/ws")) {
+        let logMessage = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        
+        // Stream API requests as logs
+        LogStreamService.broadcast(LogStreamService.createLogEntry(
+          res.statusCode >= 400 ? 'error' : 'api',
+          logMessage,
+          'api',
+          {
+            method: req.method,
+            path,
+            statusCode: res.statusCode,
+            duration,
+            response: capturedJsonResponse
+          }
+        ));
+      }
+    });
+
+    next();
+  });
+
+  // Send initial system info
+  setTimeout(() => {
+    LogStreamService.broadcast(
+      LogStreamService.createLogEntry('info', `GreenPay server started on port ${process.env.PORT || 5000}`, 'system')
+    );
+  }, 1000);
 
   return httpServer;
 }
