@@ -8,7 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Clock, CheckCircle, XCircle, DollarSign, User, Calendar, AlertCircle } from "lucide-react";
+import { Clock, CheckCircle, XCircle, DollarSign, User, Calendar, AlertCircle, Edit } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -36,7 +37,8 @@ export default function WithdrawalManagement() {
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [actionType, setActionType] = useState<'approve' | 'reject'>('approve');
+  const [actionType, setActionType] = useState<'approve' | 'reject' | 'edit'>('approve');
+  const [selectedStatus, setSelectedStatus] = useState<string>('pending');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -72,20 +74,57 @@ export default function WithdrawalManagement() {
     },
   });
 
-  const handleAction = (withdrawal: WithdrawalRequest, action: 'approve' | 'reject') => {
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status, notes }: { id: string; status: string; notes: string }) => {
+      const response = await apiRequest('PUT', `/api/admin/withdrawals/${id}/status`, {
+        status,
+        adminNotes: notes
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals"] });
+      toast({
+        title: "Status Updated",
+        description: "Withdrawal status has been updated successfully.",
+      });
+      setDialogOpen(false);
+      setAdminNotes("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update withdrawal status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAction = (withdrawal: WithdrawalRequest, action: 'approve' | 'reject' | 'edit') => {
     setSelectedWithdrawal(withdrawal);
     setActionType(action);
+    if (action === 'edit') {
+      setSelectedStatus(withdrawal.status);
+    }
     setDialogOpen(true);
   };
 
   const confirmAction = () => {
     if (!selectedWithdrawal) return;
     
-    processWithdrawalMutation.mutate({
-      id: selectedWithdrawal.id,
-      action: actionType,
-      notes: adminNotes
-    });
+    if (actionType === 'edit') {
+      updateStatusMutation.mutate({
+        id: selectedWithdrawal.id,
+        status: selectedStatus,
+        notes: adminNotes
+      });
+    } else {
+      processWithdrawalMutation.mutate({
+        id: selectedWithdrawal.id,
+        action: actionType,
+        notes: adminNotes
+      });
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -239,6 +278,15 @@ export default function WithdrawalManagement() {
                           <XCircle className="w-4 h-4 mr-2" />
                           Reject
                         </Button>
+                        <Button
+                          onClick={() => handleAction(withdrawal, 'edit')}
+                          variant="outline"
+                          className="flex-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                          data-testid={`edit-${withdrawal.id}`}
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Edit Status
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -292,6 +340,18 @@ export default function WithdrawalManagement() {
                         <p className="text-sm bg-gray-50 p-3 rounded-lg">{withdrawal.adminNotes}</p>
                       </div>
                     )}
+
+                    <div className="flex gap-2 pt-4">
+                      <Button
+                        onClick={() => handleAction(withdrawal, 'edit')}
+                        variant="outline"
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                        data-testid={`edit-processed-${withdrawal.id}`}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit Status
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -304,10 +364,13 @@ export default function WithdrawalManagement() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {actionType === 'approve' ? 'Approve' : 'Reject'} Withdrawal Request
+              {actionType === 'edit' ? 'Edit Withdrawal Status' : 
+               actionType === 'approve' ? 'Approve' : 'Reject'} Withdrawal Request
             </DialogTitle>
             <DialogDescription>
-              {actionType === 'approve' 
+              {actionType === 'edit' 
+                ? 'Change the status of this withdrawal request.'
+                : actionType === 'approve' 
                 ? 'This will approve the withdrawal and notify the user that their funds are being processed.'
                 : 'This will reject the withdrawal request. Please provide a reason for rejection.'
               }
@@ -325,15 +388,34 @@ export default function WithdrawalManagement() {
                 </div>
               </div>
 
+              {actionType === 'edit' && (
+                <div>
+                  <Label htmlFor="status-select">Status</Label>
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger data-testid="status-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div>
                 <Label htmlFor="admin-notes">
-                  {actionType === 'approve' ? 'Processing Notes (Optional)' : 'Rejection Reason (Required)'}
+                  {actionType === 'edit' ? 'Notes (Optional)' :
+                   actionType === 'approve' ? 'Processing Notes (Optional)' : 'Rejection Reason (Required)'}
                 </Label>
                 <Textarea
                   id="admin-notes"
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder={actionType === 'approve' 
+                  placeholder={actionType === 'edit' 
+                    ? 'Enter any notes about this status change...'
+                    : actionType === 'approve' 
                     ? 'Enter any processing notes...' 
                     : 'Please explain why this withdrawal is being rejected...'
                   }
@@ -350,11 +432,13 @@ export default function WithdrawalManagement() {
             </Button>
             <Button
               onClick={confirmAction}
-              disabled={processWithdrawalMutation.isPending || (actionType === 'reject' && !adminNotes.trim())}
-              className={actionType === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+              disabled={processWithdrawalMutation.isPending || updateStatusMutation.isPending || (actionType === 'reject' && !adminNotes.trim())}
+              className={actionType === 'edit' ? 'bg-blue-600 hover:bg-blue-700' : 
+                         actionType === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
               data-testid="confirm-action-button"
             >
-              {processWithdrawalMutation.isPending ? 'Processing...' : 
+              {processWithdrawalMutation.isPending || updateStatusMutation.isPending ? 'Processing...' : 
+               actionType === 'edit' ? 'Update Status' :
                actionType === 'approve' ? 'Approve Withdrawal' : 'Reject Withdrawal'}
             </Button>
           </DialogFooter>
